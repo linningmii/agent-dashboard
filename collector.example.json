@@ -1,0 +1,7 @@
+{
+  "url": "https://YOUR-INGESTION-4319.CLUSTER.devtunnels.ms",
+  "tunnelId": "YOUR-INGESTION-ID.CLUSTER",
+  "deviceId": "returned-by-enrollment",
+  "token": "returned-by-enrollment",
+  "name": "My laptop"
+}

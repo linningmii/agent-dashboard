@@ -21,4 +21,4 @@ New-Item -ItemType Directory -Force -Path $dataPath | Out-Null
 $dashboardProcess = Start-Process -FilePath $nodePath -ArgumentList @('--experimental-sqlite', ('"{0}"' -f $entryPath)) -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $dataPath 'server.log') -RedirectStandardError (Join-Path $dataPath 'server-error.log')
 $dashboardProcess.Id | Set-Content -LiteralPath (Join-Path $projectRoot '.agent-dashboard.pid')
 Write-Output "Started Agent Dashboard (PID $($dashboardProcess.Id))."
-Write-Output "Tunnel status: http://127.0.0.1:$dashboardPort/api/tunnel"
+Write-Output "Tunnel status: http://127.0.0.1:$dashboardPort/api/tunnels"

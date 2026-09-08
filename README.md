@@ -4,6 +4,12 @@ A local, live control plane for keeping a minimum number of agentic tasks in fli
 
 See [the design document](docs/design.md) for architecture, adapter behavior, data flow, security, and extension guidance.
 
+## Multiple devices
+
+One central dashboard merges tasks from its own computer and enrolled collectors. Each task carries a device name; offline devices stop contributing to the global minimum after 45 seconds. The browser/UI tunnel and device-ingestion tunnel are separate and authenticated.
+
+On the hub, use **Connect device**. On another computer, clone this repo, run the enrollment command shown in the dialog, then run `npm run collector`. Collectors send outbound reports, so additional computers do not need their own inbound tunnels. See [multi-device architecture and setup](docs/multi-device.md).
+
 ## What works
 
 - Codex tasks are discovered automatically from the local Codex SQLite history. Active turns are counted only when their status is `inProgress`.
@@ -29,7 +35,7 @@ To change defaults, copy `config.example.json` to `config.json` and edit it. Set
 
 ## Access from other devices
 
-With `tunnel.json` configured, `npm start` also hosts the same persistent Microsoft Dev Tunnel. Use `npm run start:background` to launch both in the background on Windows. Access is restricted to the tunnel owner's Microsoft account. See [remote access setup and URL discovery](docs/remote-access.md).
+With `tunnel.json` configured, `npm start` also hosts the saved UI and ingestion Dev Tunnels. Use `npm run start:background` to launch the hub and both tunnels in the background on Windows. Access is restricted to the tunnel owner's Microsoft account. See [remote access setup and URL discovery](docs/remote-access.md).
 
 The computer must remain awake and the project must be running. The service renews expiration while active; a tunnel left offline for 30 days can expire.
 
@@ -55,6 +61,9 @@ Leases prevent abandoned task reports from being counted forever.
 
 - `GET /api/status` — current aggregate and task list
 - `GET /api/tunnel` — remote connection state and observed browser URL
+- `GET /api/tunnels` — UI and device-ingestion tunnel states
+- `POST /api/devices/pair` — issue a single-use device pairing code
+- `DELETE /api/devices/:id` — revoke a remote collector
 - `GET /api/events` — live SSE snapshots
 - `PUT /api/settings` — minimum count and reminder cooldown
 - `POST /api/tasks` — create a reported Copilot task

@@ -21,7 +21,12 @@ try {
 export const config = {
   host: "127.0.0.1",
   port: Number(process.env.PORT || fileConfig.port || 4317),
-  tunnel: validateTunnelConfig(tunnelConfig, Number(process.env.PORT || fileConfig.port || 4317)),
+  tunnel: validateTunnelConfig(tunnelConfig?.ui || tunnelConfig, Number(process.env.PORT || fileConfig.port || 4317)),
+  ingestionPort: Number(process.env.INGESTION_PORT || fileConfig.ingestionPort || 4319),
+  ingestionTunnel: validateTunnelConfig(tunnelConfig?.ingestion, Number(process.env.INGESTION_PORT || fileConfig.ingestionPort || 4319)),
+  deviceRegistryFile: path.join(workspace, "data", "devices.json"),
+  deviceName: fileConfig.deviceName || os.hostname(),
+  collectLocal: fileConfig.collectLocal !== false,
   pollIntervalMs: Number(fileConfig.pollIntervalMs || 2000),
   dataFile: path.join(workspace, "data", "state.json"),
   codexStateDb: process.env.CODEX_STATE_DB || path.join(os.homedir(), ".codex", "state_5.sqlite"),
@@ -38,3 +43,5 @@ export const config = {
     windowsNotifications: fileConfig.windowsNotifications !== false
   }
 };
+if (config.ingestionPort === config.port || !Number.isInteger(config.ingestionPort) || config.ingestionPort < 1 || config.ingestionPort > 65535) throw new Error("Choose a separate valid ingestionPort.");
+if (config.tunnel.enabled && config.ingestionTunnel.enabled && config.tunnel.id === config.ingestionTunnel.id) throw new Error("UI and ingestion must use separate tunnels.");

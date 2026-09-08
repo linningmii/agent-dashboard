@@ -2,6 +2,8 @@
 
 The dashboard automatically hosts a previously created persistent dev tunnel whenever the project starts. The browser URL belongs to that tunnel and port, so restarting or reconnecting reuses the same URL.
 
+For multi-device operation, configure distinct `ui` (4317) and `ingestion` (4319) entries as shown in `tunnel.example.json`. Both host automatically. `GET /api/tunnel` retains the UI-only response; `GET /api/tunnels` reports both. Use [device enrollment](multi-device.md) to connect collectors to the ingestion URL. Legacy single-tunnel configuration is still accepted for the UI.
+
 ## Your installation
 
 The machine-specific tunnel ID is stored in the ignored `tunnel.json` file. The default dashboard port is `4317`. To get the current browser URL, read `url` from [the local tunnel status endpoint](http://127.0.0.1:4317/api/tunnel) once it reports `hosting`.

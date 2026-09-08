@@ -12,6 +12,8 @@ The dashboard uses a warm light workspace and a forest-green navigation rail. Sa
 
 Search matches task titles, workspace paths, agents, and captured output. It combines with the agent filter without changing the aggregate running count.
 
+The Devices section adds online/pending/offline state, running totals per device, enrollment, and disconnection. Its device selector combines with agent filters and search. Task cards, completion rows, and details include device names. The overall minimum always includes every online device, regardless of visible filters. See [multi-device design](multi-device.md).
+
 ## Responsive behavior
 
 The full navigation rail becomes an icon rail below 1000px, then compact top navigation below 600px. Preferences move below the task list at smaller widths. Text uses relative sizes: task updates and details are 16px at the default browser setting; primary task titles are 17px and supporting controls are generally 13–15px. Mobile agent cards stack vertically so text stays legible instead of shrinking. Dialogs fit the viewport. Controls use semantic buttons, visible keyboard focus, accessible names, and reduced-motion support.

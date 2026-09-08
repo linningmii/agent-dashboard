@@ -21,7 +21,11 @@ let completions = Array.from({ length: 12 }, (_, i) => ({
 const clients = new Set();
 function snapshot() {
   const runningCount = tasks.filter(task => task.status === "running").length;
-  return { generatedAt: new Date().toISOString(), tasks, completions, runningCount, minimumRunning: settings.minimumRunning, missingCount: Math.max(0, settings.minimumRunning - runningCount), healthy: runningCount >= settings.minimumRunning, settings,
+  const attach = task => ({ ...task, deviceId: task.source === "claude" ? "preview-laptop" : "preview-hub", deviceName: task.source === "claude" ? "Work laptop" : "Desktop", managedLocally: task.source !== "claude" });
+  const devices = [{ id: "preview-hub", name: "Desktop", local: true, status: "online", runningCount: tasks.filter(task => task.source !== "claude" && task.status === "running").length },
+    { id: "preview-laptop", name: "Work laptop", local: false, status: "online", lastSeenAt: new Date().toISOString(), runningCount: tasks.filter(task => task.source === "claude" && task.status === "running").length },
+    { id: "preview-offline", name: "Travel laptop", local: false, status: "offline", lastSeenAt: new Date(now - 3600000).toISOString(), runningCount: 0 }];
+  return { generatedAt: new Date().toISOString(), devices, tasks: tasks.map(attach), completions: completions.map(attach), runningCount, minimumRunning: settings.minimumRunning, missingCount: Math.max(0, settings.minimumRunning - runningCount), healthy: runningCount >= settings.minimumRunning, settings,
     sources: { codex: { available: true, detail: "Preview: Codex" }, copilot: { available: true, detail: "Preview: Copilot" }, claude: { available: true, detail: "Preview: Claude" } } };
 }
 const publish = () => { for (const client of clients) client.write('event: snapshot\ndata: ' + JSON.stringify(snapshot()) + '\n\n'); };

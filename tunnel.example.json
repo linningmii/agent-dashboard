@@ -1,5 +1,12 @@
 {
-  "enabled": true,
-  "id": "your-persistent-tunnel.cluster",
-  "port": 4317
+  "ui": {
+    "enabled": true,
+    "id": "your-ui-tunnel.cluster",
+    "port": 4317
+  },
+  "ingestion": {
+    "enabled": true,
+    "id": "your-ingestion-tunnel.cluster",
+    "port": 4319
+  }
 }

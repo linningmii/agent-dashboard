@@ -3,6 +3,7 @@ node_modules/
 *.log
 .agent-dashboard.pid
 tunnel.json
+collector.json
 config.json
 .env
 .env.*

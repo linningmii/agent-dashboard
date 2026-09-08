@@ -7,6 +7,9 @@ let latestSnapshot = null;
 let previousHealthy = null;
 let visibleCompletions = pageSize;
 let sourceFilter = "all";
+let deviceFilter = "all";
+let devicesMarkup = "";
+let deviceOptionsMarkup = "";
 let searchQuery = "";
 let settingsDirty = false;
 let pendingSettings = false;
@@ -57,8 +60,8 @@ function emptyState(symbol, title, message) {
   return '<div class="empty-state"><span data-icon="' + symbol + '">' + icon(symbol) + '</span><h3>' + escapeHtml(title) + '</h3><p>' + escapeHtml(message) + '</p></div>';
 }
 function matches(task) {
-  return (sourceFilter === "all" || task.source === sourceFilter) &&
-    (!searchQuery || [task.title, task.workspace, displaySource(task.source), task.latestOutput].join(" ").toLocaleLowerCase().includes(searchQuery));
+  return (sourceFilter === "all" || task.source === sourceFilter) && (deviceFilter === "all" || task.deviceId === deviceFilter) &&
+    (!searchQuery || [task.title, task.workspace, task.deviceName, displaySource(task.source), task.latestOutput].join(" ").toLocaleLowerCase().includes(searchQuery));
 }
 function completions() {
   return [...(latestSnapshot?.completions || [])].sort((a, b) => (timestamp(b.completedAt) || 0) - (timestamp(a.completedAt) || 0));
@@ -116,6 +119,7 @@ function render(snapshot, sequence = ++requestSequence) {
     document.querySelector('[data-source="' + source + '"]').title = info?.detail || description;
   }
   if (!settingsDirty && !pendingSettings) syncSettings(snapshot.settings);
+  renderDevices();
   renderLists();
   if (detailSelection) renderDetails();
   if (previousHealthy === true && !snapshot.healthy) {
@@ -171,18 +175,29 @@ function renderLists() {
   updateTimes();
 }
 
+function renderDevices() {
+  const devices = latestSnapshot?.devices || [];
+  $("#device-count").textContent = devices.length;
+  const markup = devices.map(device => '<article class="device-card" data-status="' + escapeHtml(device.status) + '"><h3>' + escapeHtml(device.name) + '</h3><p><span class="device-state">' + escapeHtml(device.status) + '</span> · ' + device.runningCount + ' running' + (device.local ? ' · Dashboard host' : '') + '</p>' + (!device.local ? '<p>Last seen: ' + relativeTime(device.lastSeenAt) + '</p><button type="button" class="button button-quiet" data-revoke-device="' + escapeHtml(device.id) + '">Disconnect</button>' : '') + '</article>').join("");
+  if (markup !== devicesMarkup) { $("#device-list").innerHTML = markup; devicesMarkup = markup; }
+  if (deviceFilter !== "all" && !devices.some(device => device.id === deviceFilter)) deviceFilter = "all";
+  const options = '<option value="all">All devices</option>' + devices.map(device => '<option value="' + escapeHtml(device.id) + '">' + escapeHtml(device.name) + '</option>').join("");
+  if (options !== deviceOptionsMarkup) { $("#device-filter").innerHTML = options; deviceOptionsMarkup = options; }
+  $("#device-filter").value = deviceFilter;
+}
+
 function runningCard(task) {
   const id = escapeHtml(task.id);
   const start = escapeHtml(task.startedAt || task.createdAt || "");
   return '<article class="task-card"><div class="task-card-top"><span class="task-agent">' + agentMark(task.source) + escapeHtml(displaySource(task.source)) + '<span class="tracking-label">' + (task.confidence === "reported" ? 'Manually tracked' : task.source === "claude" ? 'Process detected' : 'Auto-detected') + '</span></span><span class="running-pill"><span class="tiny-dot"></span>Running</span></div>' +
     '<h3><button type="button" class="task-title" data-detail="' + id + '" data-kind="running">' + escapeHtml(task.title) + '</button></h3><p class="task-workspace" title="' + escapeHtml(task.workspace) + '">' + icon("folder") + '<span>' + escapeHtml(workspaceName(task.workspace)) + '</span></p>' +
-    '<div class="output-preview"><div class="output-label">' + icon("message") + 'Latest update</div><p class="latest-output ' + (task.latestOutput ? '' : 'empty-output') + '">' + escapeHtml(task.latestOutput || "Waiting for the first update…") + '</p></div>' +
-    '<div class="task-card-footer"><span class="task-runtime">' + icon("clock") + '<span class="elapsed" data-started="' + start + '"></span></span><div class="task-actions">' + (task.confidence === "reported" ? '<button class="button button-quiet" type="button" data-complete="' + id + '">' + icon("check") + 'Complete</button>' : '') + '<button class="button button-quiet" type="button" data-detail="' + id + '" data-kind="running">View update' + icon("arrow") + '</button></div></div></article>';
+    '<p class="task-device">' + escapeHtml(task.deviceName || 'This device') + '</p><div class="output-preview"><div class="output-label">' + icon("message") + 'Latest update</div><p class="latest-output ' + (task.latestOutput ? '' : 'empty-output') + '">' + escapeHtml(task.latestOutput || "Waiting for the first update…") + '</p></div>' +
+    '<div class="task-card-footer"><span class="task-runtime">' + icon("clock") + '<span class="elapsed" data-started="' + start + '"></span></span><div class="task-actions">' + (task.confidence === "reported" && task.managedLocally !== false ? '<button class="button button-quiet" type="button" data-complete="' + id + '">' + icon("check") + 'Complete</button>' : '') + '<button class="button button-quiet" type="button" data-detail="' + id + '" data-kind="running">View update' + icon("arrow") + '</button></div></div></article>';
 }
 
 function completionCard(task) {
   const id = escapeHtml(task.id);
-  return '<article class="completion-row"><span class="completion-check">' + icon("check") + '</span><div><h3><button class="task-title" type="button" data-detail="' + id + '" data-kind="completed">' + escapeHtml(task.title) + '</button></h3><div class="completion-meta"><span>' + escapeHtml(displaySource(task.source)) + '</span><span>·</span><time data-relative="' + escapeHtml(task.completedAt) + '" datetime="' + escapeHtml(task.completedAt) + '"></time>' + (task.startedAt ? '<span>·</span><span>' + duration(task.startedAt, task.completedAt) + '</span>' : '') + '</div><p class="latest-output">' + escapeHtml(task.latestOutput || "Ready for your review.") + '</p></div><button class="clear-completion" type="button" data-clear-completion="' + id + '" aria-label="Clear completion: ' + escapeHtml(task.title) + '">' + icon("check") + 'Clear</button></article>';
+  return '<article class="completion-row"><span class="completion-check">' + icon("check") + '</span><div><h3><button class="task-title" type="button" data-detail="' + id + '" data-kind="completed">' + escapeHtml(task.title) + '</button></h3><div class="completion-meta"><span>' + escapeHtml(task.deviceName || 'This device') + '</span><span>·</span><span>' + escapeHtml(displaySource(task.source)) + '</span><span>·</span><time data-relative="' + escapeHtml(task.completedAt) + '" datetime="' + escapeHtml(task.completedAt) + '"></time>' + (task.startedAt ? '<span>·</span><span>' + duration(task.startedAt, task.completedAt) + '</span>' : '') + '</div><p class="latest-output">' + escapeHtml(task.latestOutput || "Ready for your review.") + '</p></div><button class="clear-completion" type="button" data-clear-completion="' + id + '" aria-label="Clear completion: ' + escapeHtml(task.title) + '">' + icon("check") + 'Clear</button></article>';
 }
 
 function updateTimes() {
@@ -206,10 +221,34 @@ function renderDetails() {
   detailSelection.task = task;
   $("#detail-title").textContent = task.title;
   $("#detail-source").textContent = displaySource(task.source) + (detailSelection.kind === "completed" ? " · COMPLETED" : " · RUNNING");
-  $("#detail-workspace").textContent = task.workspace || "No workspace provided";
+  $("#detail-workspace").textContent = (task.deviceName || "This device") + " · " + (task.workspace || "No workspace provided");
   $("#detail-time").textContent = detailSelection.kind === "completed" ? "Finished " + relativeTime(task.completedAt) + " · Runtime " + duration(task.startedAt, task.completedAt) : "Running for " + duration(task.startedAt || task.createdAt);
   $("#detail-output").textContent = task.latestOutput || "No update captured yet.";
 }
+
+$("#device-filter").addEventListener("change", event => { deviceFilter = event.target.value; visibleCompletions = pageSize; renderLists(); });
+$("#device-list").addEventListener("click", async event => {
+  const button = event.target.closest("[data-revoke-device]");
+  if (!button) return;
+  await perform(button, () => api("/api/devices/" + encodeURIComponent(button.dataset.revokeDevice), { method: "DELETE" }));
+});
+$("#connect-device-button").addEventListener("click", async event => {
+  const button = event.currentTarget; button.disabled = true;
+  $("#pair-code").value = ""; $("#pair-command").value = "";
+  $("#pair-status").textContent = "Creating a one-time pairing code…";
+  $("#pair-dialog").showModal();
+  try {
+    const pairing = await api("/api/devices/pair", { method: "POST", body: "{}" });
+    $("#pair-code").value = pairing.code;
+    const url = /^https:\/\/[a-z0-9-]+\.[a-z0-9]+\.devtunnels\.ms\/?$/i.test(pairing.ingestionUrl || "") ? pairing.ingestionUrl : null;
+    const tunnelId = /^[a-z0-9-]+\.[a-z0-9]+$/i.test(pairing.tunnelId || "") ? pairing.tunnelId : null;
+    $("#pair-command").value = url && tunnelId ? 'npm run device:enroll -- --url ' + url + ' --tunnel-id ' + tunnelId + ' --name "My laptop"' : 'Ingestion tunnel is not ready. Check /api/tunnels and try again.';
+    $("#pair-status").textContent = "Code expires at " + new Date(pairing.expiresAt).toLocaleTimeString();
+  } catch (error) { $("#pair-status").textContent = error.message; }
+  finally { button.disabled = false; }
+});
+$("#close-pair").addEventListener("click", () => $("#pair-dialog").close());
+$("#pair-dialog").addEventListener("close", () => { $("#pair-code").value = ""; });
 
 function setCompletedExpanded(expanded) {
   $("#completed-content").hidden = !expanded;
@@ -293,7 +332,7 @@ $("#task-form").addEventListener("submit", async event => {
     await api("/api/tasks", { method: "POST", body: JSON.stringify({ source: $("#task-source").value, title: $("#task-title").value.trim(), workspace: $("#task-workspace").value, latestOutput: $("#task-output").value, leaseMinutes: Number($("#lease-input").value) }) });
     event.target.reset();
     $("#task-dialog").close();
-    sourceFilter = "all"; searchQuery = ""; $("#task-search").value = "";
+    sourceFilter = "all"; deviceFilter = "all"; searchQuery = ""; $("#task-search").value = "";
     await loadSnapshot();
     showToast("Task added to your workspace.");
   } catch (error) { $("#task-error").textContent = error.message; }

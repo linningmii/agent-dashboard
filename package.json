@@ -5,6 +5,8 @@
   "type": "module",
   "description": "Local live dashboard for Codex and GitHub Copilot agentic tasks",
   "scripts": {
+    "collector": "node --experimental-sqlite scripts/collector.mjs",
+    "device:enroll": "node scripts/enroll-device.mjs",
     "start": "node --experimental-sqlite src/server.mjs",
     "start:background": "powershell.exe -NoProfile -File scripts/start-background.ps1",
     "dev": "node --experimental-sqlite --watch src/server.mjs",

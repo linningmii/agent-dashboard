@@ -7,13 +7,17 @@ import { Store } from "./store.mjs";
 import { DashboardService } from "./service.mjs";
 import { Notifier } from "./notifier.mjs";
 import { createTunnelHost } from "./tunnel.mjs";
+import { DeviceRegistry } from "./device-registry.mjs";
+import { createIngestionServer } from "./ingestion.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicRoot = path.join(root, "public");
 const store = new Store(config.dataFile, config.defaults);
-const service = new DashboardService(config, store);
+const registry = new DeviceRegistry(config.deviceRegistryFile, { localName: config.deviceName });
+const service = new DashboardService(config, store, registry);
 const notifier = new Notifier(root);
 const tunnel = createTunnelHost(config.tunnel);
+const ingestionTunnel = createTunnelHost(config.ingestionTunnel, { log: message => console.log("Ingestion: " + message) });
 const clients = new Set();
 let lastSerialized = "";
 
@@ -77,8 +81,20 @@ export function createServer() {
     response.setHeader("x-content-type-options", "nosniff");
     response.setHeader("content-security-policy", "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:");
     try {
+      if (!["GET", "HEAD"].includes(request.method) && !request.headers["content-type"]?.startsWith("application/json")) {
+        return sendJson(response, 415, { error: "JSON content type required" });
+      }
       if (request.method === "GET" && url.pathname === "/api/status") return sendJson(response, 200, refresh());
       if (request.method === "GET" && url.pathname === "/api/tunnel") return sendJson(response, 200, tunnel.snapshot());
+      if (request.method === "GET" && url.pathname === "/api/tunnels") return sendJson(response, 200, { ui: tunnel.snapshot(), ingestion: ingestionTunnel.snapshot() });
+      if (request.method === "POST" && url.pathname === "/api/devices/pair") {
+        const pairing = registry.pair();
+        return sendJson(response, 201, { ...pairing, ingestionUrl: ingestionTunnel.snapshot().url, tunnelId: config.ingestionTunnel.id || null });
+      }
+      const revokeMatch = url.pathname.match(/^\/api\/devices\/([a-z0-9-]+)$/);
+      if (request.method === "DELETE" && revokeMatch) {
+        registry.revoke(revokeMatch[1]); refresh(); return sendJson(response, 200, { revoked: true });
+      }
       if (request.method === "GET" && url.pathname === "/api/events") {
         response.writeHead(200, {
           "content-type": "text/event-stream",
@@ -118,20 +134,32 @@ export function createServer() {
       }
       const completionMatch = url.pathname.match(/^\/api\/completions(?:\/([^/]+))?$/);
       if (request.method === "DELETE" && completionMatch) {
-        const removed = store.clearCompletion(completionMatch[1] ? decodeURIComponent(completionMatch[1]) : null);
+        const completionId = completionMatch[1] ? decodeURIComponent(completionMatch[1]) : null;
+        const removed = store.clearCompletion(completionId) + registry.clearCompletion(completionId);
         refresh();
         return sendJson(response, 200, { removed });
       }
       if (request.method === "GET" && serveStatic(url.pathname, response)) return;
       sendJson(response, 404, { error: "Not found" });
     } catch (error) {
-      sendJson(response, error instanceof SyntaxError ? 400 : 500, { error: error.message });
+      sendJson(response, error.status || (error instanceof SyntaxError ? 400 : 500), { error: error.message });
     }
   });
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const server = createServer();
+  const ingestion = createIngestionServer(registry, refresh);
+  const startupError = error => {
+    console.error("Dashboard listener failed:", error.code || error.message);
+    tunnel.stop(); ingestionTunnel.stop(); process.exit(1);
+  };
+  server.on("error", startupError);
+  ingestion.on("error", startupError);
+  ingestion.listen(config.ingestionPort, config.host, () => {
+    console.log("Device ingestion running at http://" + config.host + ":" + config.ingestionPort);
+    ingestionTunnel.start();
+  });
   server.listen(config.port, config.host, () => {
     console.log(`Agent Dashboard running at http://${config.host}:${config.port}`);
     refresh();
@@ -141,6 +169,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const shutdown = () => {
     clearInterval(timer);
     tunnel.stop();
+    ingestionTunnel.stop();
+    ingestion.close();
     for (const client of clients) client.end();
     server.close(() => process.exit(0));
   };

@@ -6,6 +6,8 @@ Agent Dashboard is a local service that answers one operational question: **are 
 
 The service is intentionally local-only and dependency-light. It uses Node.js built-in modules, reads local application state, and binds to `127.0.0.1`.
 
+The service also acts as a central hub. Its UI and device-ingestion APIs listen on separate loopback ports, each with its own private Dev Tunnel. Remote collectors push authenticated snapshots; the hub aggregates online devices against the global minimum. See [multi-device design](multi-device.md) for enrollment, device identity, offline handling, and delivery semantics.
+
 ## System overview
 
 ```mermaid
@@ -142,7 +144,7 @@ On Windows, `scripts/notify.ps1` uses the native toast API. The browser also dis
 ## Security and privacy
 
 - The HTTP listener binds only to loopback, not the LAN.
-- No cloud API, account token, or telemetry service is used.
+- Local collection uses no model API or telemetry service. Optional remote hosting and collectors use Microsoft Dev Tunnels authentication, and device credentials are stored only in ignored local files.
 - Source databases and logs are opened read-only.
 - Latest-output extraction excludes raw tool output and user messages.
 - HTTP responses include a restrictive Content Security Policy and `X-Content-Type-Options: nosniff`.
@@ -172,7 +174,7 @@ Prefer an explicit task/turn status API when available. Use process presence onl
 ## Possible next steps
 
 - Add a small VS Code extension that reports Copilot chat lifecycle events automatically.
-- Add per-source include/exclude controls for the capacity target.
+- Add per-source include/exclude controls for the global minimum (display filters currently leave it unchanged).
 - Store recent task-completion history for throughput and utilization charts.
 - Add an authenticated LAN mode for monitoring several machines.
 - Replace implementation-detail adapters if vendors publish supported task-status APIs.
