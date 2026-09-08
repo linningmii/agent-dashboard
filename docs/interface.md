@@ -22,14 +22,14 @@ The full navigation rail becomes an icon rail below 1000px, then compact top nav
 
 The connection indicator reflects the SSE connection and shows disconnection/retry state. Snapshot ordering guards against an older request overwriting a newer live update. Task list markup is retained when its contents have not changed, preserving focused controls. Elapsed and relative times update separately once per second.
 
-Clear actions, task creation, and preference saves report request failures and refresh the snapshot after success. The redesign uses the existing adapters, settings, persisted inbox, and HTTP API.
+Clear actions, task creation, and preference saves report request failures and refresh the snapshot after success. React consumes the C# API using a client generated from OpenAPI. Application sign-in uses an access key and an HTTP-only session cookie. Server-scheduled SSE reminder events drive in-page and optional browser notifications, including repeats while below the minimum.
 
 ## UI verification
 
-Run the production service with `npm start`. For isolated interaction checks, run:
+Build with `scripts/build.ps1` or `scripts/build.sh`, then run the published C# API. For isolated interaction checks, use separate ports and state:
 
 ```sh
-node scripts/preview-ui.mjs
+dotnet artifacts/release/hub/Dashboard.Api.dll --ui-port 4417 --ingestion-port 4419 --data-dir data/preview --no-tunnels true
 ```
 
-The optional preview at [http://127.0.0.1:4318](http://127.0.0.1:4318) serves the same frontend with three synthetic running tasks and twelve completions. Its mutations exist only in memory; it never reads or writes real application history. Use it to exercise pagination, filters, task creation/completion, acknowledgement, settings, and mobile layouts. Stop the process to discard its data. It is not part of production startup.
+The preview at [http://127.0.0.1:4417](http://127.0.0.1:4417) serves the same React build with a separate SQLite store. Sign in with data/preview/ui-access-key, then create synthetic reports/tasks for testing. Its data is separate from the production state. Stop the process after verification. No source-agent applications are scanned by the API.

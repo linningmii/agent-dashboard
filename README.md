@@ -1,79 +1,70 @@
 # Agent Dashboard
 
-A local, live control plane for keeping a minimum number of agentic tasks in flight. Adapters support Codex, GitHub Copilot, and Claude Code.
+Monitor Codex, GitHub Copilot, and Claude Code across devices. Maintain **at least three parallel tasks** by default; more than three is healthy.
 
-See [the design document](docs/design.md) for architecture, adapter behavior, data flow, security, and extension guidance.
+## Three components
 
-See the [cross-platform architecture one-pager](docs/architecture-onepager.md) for the proposed React/TypeScript UI, C# API service, and .NET collector. This describes the next architecture; the current implementation is still Node.js.
+| Component | Technology | Responsibility |
+|---|---|---|
+| Dashboard UI | React + strict TypeScript / Vite | Device filters, live task updates, completion inbox, reminders |
+| API service | C# / ASP.NET Core (.NET 10) | Authentication, aggregation, SQLite persistence, ingestion and SSE |
+| Collector | C# / .NET 10 | Read local agents and send authenticated outbound reports |
 
-## Multiple devices
+The API host needs no installed agents. Run a separate collector on every monitored computer, including the API host if needed. Linux, Windows, and macOS are supported; see the [adapter support matrix](docs/adapters.md) for detection limitations.
 
-One central dashboard merges tasks from its own computer and enrolled collectors. Each task carries a device name; offline devices stop contributing to the global minimum after 45 seconds. The browser/UI tunnel and device-ingestion tunnel are separate and authenticated.
+## Build
 
-On the hub, use **Connect device**. On another computer, clone this repo, run the enrollment command shown in the dialog, then run `npm run collector`. Collectors send outbound reports, so additional computers do not need their own inbound tunnels. See [multi-device architecture and setup](docs/multi-device.md).
+Requires .NET 10 SDK and Node.js 22.12+ for the frontend build. **npm packages must come from the corporate Enzyme feed**, configured in both .npmrc files. Authenticate using your approved Azure Artifacts credentials, or an existing Azure CLI sign-in:
 
-## What works
+```powershell
+pwsh ./scripts/install-web.ps1 -Clean
+pwsh ./scripts/build.ps1
+```
 
-- Codex tasks are discovered automatically from the local Codex SQLite history. Active turns are counted only when their status is `inProgress`.
-- Each running task shows a live elapsed timer. Codex rows also show the latest agent message from local history.
-- GitHub Copilot installation/process presence is discovered automatically. Because Copilot's local stores do not expose a stable active-task status, running tasks are confirmed through time-limited dashboard leases.
-- Claude Code tasks are detected from live `claude.exe` processes and paired with recently updated local JSONL sessions for titles, workspaces, and latest output. Manual leases remain available as a fallback.
-- Live browser updates use Server-Sent Events.
-- Recently completed tasks remain in a persisted inbox until cleared. Clearing acknowledges the notification and does not delete source history.
-- The default target is three parallel tasks. Falling below it triggers an in-page alert and a Windows toast, subject to a configurable cooldown.
-- State remains on `127.0.0.1` and is persisted under `data/`. No cloud service or API key is required.
+On Linux/macOS with an Azure CLI sign-in:
+
+```sh
+sh scripts/install-web.sh
+sh scripts/build.sh
+```
+
+NuGet uses Microsoft's dotnet-public Azure Artifacts feed. The build runs backend tests, checks TypeScript, builds the UI, and publishes the API and collector under artifacts/release. There are no JavaScript backend or collector processes.
 
 ## Run
 
-Requires Node.js 22.5 or newer.
-
-```powershell
-npm start
+```sh
+dotnet artifacts/release/hub/Dashboard.Api.dll
 ```
 
-Open [http://127.0.0.1:4317](http://127.0.0.1:4317).
+Open [http://127.0.0.1:4317](http://127.0.0.1:4317). The first start creates a private **data/ui-access-key** file. Use its contents to sign in; an HTTP-only cookie retains the session. Set DASHBOARD_ACCESS_KEY for managed deployments. Do not commit keys or collector credentials.
 
-To change defaults, copy `config.example.json` to `config.json` and edit it. Settings changed in the dashboard are persisted separately.
+The API uses two distinct ports: **4317** for UI/dashboard APIs and **4319** for device ingestion. Optional tunnel.json settings retain the two persistent Dev Tunnel URLs. See [remote access](docs/remote-access.md).
 
-## Access from other devices
+## Connect a device
 
-With `tunnel.json` configured, `npm start` also hosts the saved UI and ingestion Dev Tunnels. Use `npm run start:background` to launch the hub and both tunnels in the background on Windows. Access is restricted to the tunnel owner's Microsoft account. See [remote access setup and URL discovery](docs/remote-access.md).
+In the dashboard, choose **Connect device**, run its .NET enrollment command on the other computer, and paste the one-time code. Start its collector:
 
-The computer must remain awake and the project must be running. The service renews expiration while active; a tunnel left offline for 30 days can expire.
-
-## Copilot reporting API
-
-The UI's **Track a task** button creates a lease. Scripts can do the same:
-
-```powershell
-$task = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:4317/api/tasks `
-  -ContentType application/json `
-  -Body '{"source":"copilot","title":"Implement checkout flow","workspace":"C:\\repo","latestOutput":"Inspecting payment tests","leaseMinutes":60}'
-
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:4317/api/tasks/$($task.id)/heartbeat" `
-  -ContentType application/json -Body '{"leaseMinutes":5,"latestOutput":"Two tests remain"}'
-
-Invoke-RestMethod -Method Patch -Uri "http://127.0.0.1:4317/api/tasks/$($task.id)" `
-  -ContentType application/json -Body '{"status":"completed"}'
+```sh
+dotnet artifacts/release/collector/Dashboard.Collector.dll run
 ```
 
-Leases prevent abandoned task reports from being counted forever.
+Collectors need no inbound port. They support HTTPS endpoints with optional Microsoft Dev Tunnels authentication. Missing heartbeats mark devices offline after 45 seconds; offline tasks do not count and are not mistaken for completed tasks.
 
-## API
+On Windows, after building and enrolling this host, start both background processes using:
 
-- `GET /api/status` — current aggregate and task list
-- `GET /api/tunnel` — remote connection state and observed browser URL
-- `GET /api/tunnels` — UI and device-ingestion tunnel states
-- `POST /api/devices/pair` — issue a single-use device pairing code
-- `DELETE /api/devices/:id` — revoke a remote collector
-- `GET /api/events` — live SSE snapshots
-- `PUT /api/settings` — minimum count and reminder cooldown
-- `POST /api/tasks` — create a reported Copilot task
-- `PATCH /api/tasks/:id` — update status or title
-- `POST /api/tasks/:id/heartbeat` — renew a running-task lease
-- `DELETE /api/completions/:id` — acknowledge one completion
-- `DELETE /api/completions` — acknowledge all completions
+```powershell
+pwsh ./scripts/start-dotnet.ps1 -Collector
+```
 
-## Current limitation
+For manual agent tracking, use the dashboard or the collector's report/complete commands. See [multi-device setup](docs/multi-device.md).
 
-Codex's database schema and Copilot's storage are app implementation details, not guaranteed public integration contracts. The adapters fail soft and the reporting API remains usable if an app update changes local storage.
+## Development and verification
+
+- API: dotnet run --project src/Dashboard.Api
+- Collector: dotnet run --project src/Dashboard.Collector -- run
+- UI development: npm --prefix web run dev (proxies /api to port 4317)
+- Tests: dotnet test AgentDashboard.slnx
+- Refresh generated API types: pwsh scripts/export-openapi.ps1, then npm --prefix web run generate:api
+- Verify deployed private tunnels: pwsh scripts/verify-deployment.ps1 -Remote
+
+The [architecture one-pager](docs/architecture-onepager.md), [design](docs/design.md), [migration/rollback guide](docs/migration.md), and [interface notes](docs/interface.md) document the system. GitHub Actions verifies backend tests and collector publishing on Linux, Windows, and macOS. Building the UI requires access to Enzyme; it never falls back to npmjs.org.

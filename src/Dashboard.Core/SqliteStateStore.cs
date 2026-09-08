@@ -14,6 +14,8 @@ public sealed class SqliteStateStore<T> where T : new()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file))!);
         connectionString = new SqliteConnectionStringBuilder { DataSource = file, Pooling = false }.ToString();
+        if (!File.Exists(file)) { using var empty = File.Create(file); }
+        Credentials.Protect(file);
         using var db = Open();
         using var command = db.CreateCommand();
         command.CommandText = "PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL, json TEXT NOT NULL);";

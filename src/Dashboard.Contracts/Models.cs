@@ -40,6 +40,7 @@ public record AgentTask
 }
 public record Completion : AgentTask
 {
+    public Completion() { Status = TaskStatus.Completed; }
     public string TaskId { get; init; } = "";
     public DateTimeOffset CompletedAt { get; init; }
 }

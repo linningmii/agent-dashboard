@@ -42,7 +42,7 @@ public sealed class CodexAdapter(AdapterPaths paths) : IAgentAdapter
                         {
                             try { using var doc = JsonDocument.Parse(Value(output, "item_json")); task = task with { LatestOutput = JsonLines.Clip(JsonLines.Message(doc.RootElement)), LatestOutputAt = Milliseconds(output.GetValueOrDefault("created_at_ms")) }; } catch (JsonException) { }
                         }
-                        if (status == "inProgress" && latest) tasks[task.Id] = task;
+                        if (status == "inProgress" && latest) tasks[task.Id] = task with { Status = Seconds(row.GetValueOrDefault("updated_at")) is { } updated && DateTimeOffset.UtcNow - updated > TimeSpan.FromHours(24) ? TaskStatus.Stale : TaskStatus.Running };
                         else if (status == "completed") completed[task.Id] = HubService.ToCompletion(task, task.Id + ":complete", Seconds(turn.GetValueOrDefault("completed_at")) ?? start ?? DateTimeOffset.UtcNow);
                         latest = false;
                     }

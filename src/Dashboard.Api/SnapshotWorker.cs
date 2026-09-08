@@ -17,7 +17,10 @@ public sealed class SnapshotWorker(HubService hub, TimeProvider clock, ILogger<S
     {
         var id = Guid.NewGuid(); var channel = Channel.CreateBounded<StreamEvent>(new BoundedChannelOptions(8) { FullMode = BoundedChannelFullMode.DropOldest });
         clients[id] = channel;
-        channel.Writer.TryWrite(new("snapshot", JsonSerializer.Serialize(hub.Snapshot(), Protocol.Json)));
+        var snapshot = hub.Snapshot();
+        channel.Writer.TryWrite(new("snapshot", JsonSerializer.Serialize(snapshot, Protocol.Json)));
+        if (!snapshot.Healthy) channel.Writer.TryWrite(new("reminder", JsonSerializer.Serialize(new Reminder(Protocol.Id(), clock.GetUtcNow(), snapshot.RunningCount, snapshot.MinimumRunning,
+            $"{snapshot.RunningCount} tasks running. Start {snapshot.MissingCount} more to reach your minimum of {snapshot.MinimumRunning}."), Protocol.Json)));
         return (id, channel.Reader);
     }
     public void Unsubscribe(Guid id) { if (clients.TryRemove(id, out var channel)) channel.Writer.TryComplete(); }

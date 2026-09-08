@@ -53,6 +53,34 @@ public sealed class HttpTests
             Assert.Equal("event: snapshot", await reader.ReadLineAsync(timeout.Token));
             Assert.StartsWith("data: ", await reader.ReadLineAsync(timeout.Token));
             var json = await client.GetFromJsonAsync<JsonElement>("/openapi/v1.json"); Assert.True(json.GetProperty("paths").TryGetProperty("/v1/devices/{id}/snapshot", out _));
+            // Exercise the real packaged CLI, not just the shared HTTP models.
+            var cliPair = await (await client.PostAsJsonAsync("/api/devices/pair", new { })).Content.ReadFromJsonAsync<PairingResponse>(Protocol.Json);
+            var collectorDll = Path.Combine(AppContext.BaseDirectory, "Dashboard.Collector.dll");
+            var configFile = Path.Combine(dir, "cli.json"); var stateFile = Path.Combine(dir, "collector.sqlite");
+            async Task<string> RunCollector(params string[] arguments)
+            {
+                var info = new ProcessStartInfo("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
+                foreach (var value in new[] { collectorDll }.Concat(arguments).Concat(["--config", configFile, "--state", stateFile])) info.ArgumentList.Add(value);
+                info.Environment["AGENT_PAIR_CODE"] = cliPair!.Code;
+                info.Environment["CODEX_STATE_DB"] = Path.Combine(dir, "missing-codex.sqlite");
+                info.Environment["CLAUDE_CONFIG_DIR"] = Path.Combine(dir, "missing-claude");
+                info.Environment["COPILOT_STORAGE"] = Path.Combine(dir, "missing-copilot");
+                using var process = Process.Start(info)!;
+                var output = process.StandardOutput.ReadToEndAsync(); var errors = process.StandardError.ReadToEndAsync();
+                using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                try { await process.WaitForExitAsync(limit.Token); Assert.True(process.ExitCode == 0, await errors); return (await output).Trim(); }
+                finally { if (!process.HasExited) process.Kill(true); }
+            }
+            await RunCollector("enroll", "--url", $"http://127.0.0.1:{ingest}", "--name", "CLI integration device");
+            var manualId = await RunCollector("report", "--source", "copilot", "--title", "CLI task");
+            await RunCollector("run", "--once");
+            snapshot = await client.GetFromJsonAsync<Snapshot>("/api/status", Protocol.Json);
+            Assert.Equal(2, snapshot!.RunningCount);
+            Assert.Contains(snapshot.Tasks, task => task.Title == "CLI task" && task.DeviceName == "CLI integration device");
+            await RunCollector("complete", "--id", manualId, "--output", "CLI completed output");
+            await RunCollector("run", "--once");
+            snapshot = await client.GetFromJsonAsync<Snapshot>("/api/status", Protocol.Json);
+            Assert.Contains(snapshot!.Completions, item => item.LatestOutput == "CLI completed output");
         }
         finally { if (!host.HasExited) host.Kill(true); await host.WaitForExitAsync(); await stdout; await stderr; Directory.Delete(dir, true); }
     }

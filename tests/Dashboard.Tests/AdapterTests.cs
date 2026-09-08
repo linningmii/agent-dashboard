@@ -58,4 +58,30 @@ public sealed class AdapterTests : IDisposable
         Assert.Empty(restarted.Collect("session", 3).Completions);
     }
     private sealed class Stub(AdapterResult result) : IAgentAdapter { public AdapterResult Collect() => result; }
+    [Fact] public void CodexReadsCanonicalNameLatestTurnAndFinalOutputFromSqlite()
+    {
+        var stateFile = Path.Combine(dir, "state.sqlite"); var historyFile = Path.Combine(dir, "history.sqlite"); var indexFile = Path.Combine(dir, "index.jsonl");
+        using (var db = new SqliteConnection("Data Source=" + stateFile))
+        {
+            db.Open(); using var cmd = db.CreateCommand();
+            cmd.CommandText = "CREATE TABLE threads(id TEXT,name TEXT,title TEXT,cwd TEXT,model TEXT,archived INTEGER,updated_at INTEGER,rollout_path TEXT); INSERT INTO threads VALUES('t',NULL,'Original prompt','/repo','test-model',0,$now,'');";
+            cmd.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToUnixTimeSeconds()); cmd.ExecuteNonQuery();
+        }
+        using (var db = new SqliteConnection("Data Source=" + historyFile))
+        {
+            db.Open(); using var cmd = db.CreateCommand();
+            cmd.CommandText = "CREATE TABLE thread_turns(thread_id TEXT,turn_id TEXT,status TEXT,started_at INTEGER,completed_at INTEGER); CREATE TABLE thread_items(thread_id TEXT,turn_id TEXT,item_type TEXT,item_json TEXT,created_at_ms INTEGER,rollout_ordinal INTEGER); INSERT INTO thread_turns VALUES('t','old','inProgress',100,NULL),('t','current','completed',200,300); INSERT INTO thread_items VALUES('t','current','agentMessage','{\"text\":\"Final output\"}',300000,2);";
+            cmd.ExecuteNonQuery();
+        }
+        File.WriteAllText(indexFile, "{\"id\":\"t\",\"thread_name\":\"Canonical sidebar name\"}");
+        var adapter = new CodexAdapter(new(stateFile, historyFile, indexFile, dir, dir, dir));
+        var result = adapter.Collect(); Assert.True(result.Info.Available); Assert.Empty(result.Tasks);
+        Assert.Equal("Canonical sidebar name", result.Completions.Single().Title); Assert.Equal("Final output", result.Completions.Single().LatestOutput);
+        using (var db = new SqliteConnection("Data Source=" + historyFile))
+        {
+            db.Open(); using var cmd = db.CreateCommand(); cmd.CommandText = "UPDATE thread_turns SET status='inProgress' WHERE turn_id='current'"; cmd.ExecuteNonQuery();
+        }
+        result = adapter.Collect(); Assert.Single(result.Tasks); Assert.EndsWith(":current", result.Tasks[0].Id);
+        SqliteConnection.ClearAllPools();
+    }
 }

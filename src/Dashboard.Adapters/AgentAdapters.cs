@@ -40,10 +40,12 @@ public sealed class ClaudeAdapter(AdapterPaths paths) : IAgentAdapter
         {
             if (item.Child("isSidechain").ValueKind == System.Text.Json.JsonValueKind.True) continue;
             title = item.Text("aiTitle") ?? title; workspace = item.Text("cwd") ?? workspace; session = item.Text("sessionId") ?? session;
-            if (item.Text("type") == "user" && item.Child("message").Child("content").ValueKind == System.Text.Json.JsonValueKind.String)
+            var userContent = item.Child("message").Child("content");
+            var userText = userContent.ValueKind == System.Text.Json.JsonValueKind.String ? userContent.GetString() : JsonLines.Message(item.Child("message"));
+            if (item.Text("type") == "user" && !string.IsNullOrEmpty(userText))
             {
-                if (item.Child("message").Text("content")?.StartsWith("<local-command", StringComparison.Ordinal) == true) { active = null; continue; }
-                title = JsonLines.Clip(item.Child("message").Text("content"), 200);
+                if (userText.StartsWith("<local-command", StringComparison.Ordinal)) { active = null; continue; }
+                title = JsonLines.Clip(userText, 200);
                 active = new() { Id = "claude:" + session + ":" + (item.Text("uuid") ?? item.Text("timestamp")), Source = "claude", Title = title,
                     Workspace = workspace, StartedAt = item.Time("timestamp"), Status = TaskStatus.Unknown, Confidence = Confidence.Estimated };
             }

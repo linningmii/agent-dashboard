@@ -21,6 +21,18 @@ jobs:
       - run: dotnet restore AgentDashboard.slnx --configfile NuGet.Config
       - run: dotnet test AgentDashboard.slnx --no-restore --configuration Release --logger trx
       - run: dotnet publish src/Dashboard.Collector --no-restore --configuration Release --no-self-contained -o artifacts/collector
+      - name: Exercise packaged collector with isolated app paths
+        shell: pwsh
+        run: |
+          $env:CODEX_STATE_DB = Join-Path $env:RUNNER_TEMP 'missing-codex.sqlite'
+          $env:CLAUDE_CONFIG_DIR = Join-Path $env:RUNNER_TEMP 'missing-claude'
+          $env:COPILOT_STORAGE = Join-Path $env:RUNNER_TEMP 'missing-copilot'
+          dotnet artifacts/collector/Dashboard.Collector.dll inspect --state artifacts/collector-smoke.sqlite
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged collector failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: collector-${{ matrix.os }}
+          path: artifacts/collector/
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -1,34 +1,27 @@
-# Migration progress
+# Migration verification
 
-Target: [architecture one-pager](architecture-onepager.md). Work is in progress; the original Node service remains the live deployment until cutover is verified.
+The production service has been cut over to the three-part .NET/React architecture. The original Node runtime is removed from the working tree and recoverable at Git commit ef36684.
 
-## Implemented so far
+## Evidence
 
-- .NET 10 solution: Contracts, Core, API, Adapters, and Collector, with nullable reference types and warnings treated as errors.
-- C# API: distinct UI/ingestion ports, per-device authentication, replay protection, expiry, SQLite persistence, JSON state import, SSE, and scheduled reminder events.
-- API-hosted UI authentication using a local access key and HTTP-only signed session cookie, independent of tunnel provider.
-- Standalone .NET collector with enrollment, outbound HTTPS reporting, persisted completion outbox, manual reporting, and OS-dependent path defaults. The API has no dependency on adapter projects or installed agent apps.
-- React + strict TypeScript/Vite UI and OpenAPI-generated types/client, retaining the existing design and global minimum behavior.
-- Enzyme-only npm configuration and lockfile. Installation succeeded using the existing Entra login. No npmjs.org package downloads are required or permitted.
-- Windows and Ubuntu/WSL builds and 16 C# tests pass, including live HTTP listener isolation and migration-import checks. React sign-in and SSE rendering were verified, and the Windows .NET collector enrolled and delivered a real local snapshot to the isolated API.
-- GitHub Actions run 34202626860 passed backend tests and collector publishing on Linux, Windows, and macOS for commit 628a39d. These are fixture/runtime checks, not native installed-agent certification.
-- React completion pagination, collapse, and full output details were exercised against the isolated C# API.
+- C# API, standalone C# collector, strict TypeScript/React UI, and generated OpenAPI client build successfully.
+- 19 backend tests pass locally on Windows, including actual HTTP listener authentication/isolation, real collector CLI enrollment/report/complete, import idempotency, offline/replay rules, adapter fixtures, reminder scheduling, and tunnel URL parsing.
+- The earlier cross-platform matrix (GitHub Actions run 34202626860) passed Linux/Windows/macOS. Updated final-code matrix results are pending.
+- The Windows collector reads the live Codex installation and continuously reports through a separate process. Historical unmatched starts are excluded as stale; Claude's uncertain activity does not count as running.
+- React sign-in, SSE, search, completion pagination/collapse/details, and mobile layout were inspected. On mobile, output is 16px and there is no horizontal overflow. Completion clearing was exercised via the API using isolated synthetic records.
+- All 16 legacy unread completions and the original device identity were preserved at cutover. Legacy JSON was copied to an ignored backup directory and retained unchanged.
+- Both original private Dev Tunnel URLs are hosted by the C# service. The deployed verifier passed authenticated React HTML, separate ingress, synthetic registration/reporting, completion/replay, and live SSE through the tunnels.
+- Enzyme package installation succeeded. The committed lockfile resolves packages only through the Enzyme host. A clean-install recheck is still running.
 
-## Remaining before completion
+## Remaining verification
 
-- Finish native HTTP/collector integration and runtime verification on Linux and Windows; add cross-platform CI, including macOS adapter fixtures. Native macOS agent-app verification has not yet been performed.
-- Audit and improve adapter parity: Codex legacy/current schemas and current-turn selection; Claude transcript states are estimated and must not count as active generation. Validate metadata and final outputs against the current installation.
-- Finish React browser checks for task filtering, completion acknowledgement, and mobile layout. Login/SSE, pagination, collapse, details, and the generated client/build already work.
-- Migrate live state safely, enroll a separate collector for the original host, preserve the two existing tunnel URLs, and verify live data and reminders.
-- Replace default launch/build/package instructions and scripts with the .NET/React workflow, remove obsolete runtime files after successful cutover, and document rollback.
-- Update architecture and operations docs to distinguish the final implementation from the old Node system. Commit/push only validated changes.
+- Finish the clean Enzyme install check and rebuild from its result.
+- Run the final cross-platform CI matrix and inspect its results, including the packaged collector CLI on Linux/macOS/Windows.
+- Refresh/recheck the generated OpenAPI contract, publish the latest config-path handling, and audit final instructions and artifacts.
+- Native vendor app installations on macOS/Linux are not available here; [adapter support](adapters.md) distinguishes cross-platform fixtures/runtime tests from live installed-agent validation.
 
-## Package sources
+## Build policy and rollback
 
-Use the corporate Enzyme feed configured in root and web `.npmrc`. `scripts/install-web.ps1` obtains a short-lived Azure DevOps token from the existing `az` login, passes it through an environment variable, and deletes the temporary credential-reference configuration afterward. It does not alter the user's global npm configuration or print/save the token. `web/package-lock.json` resolves packages only through `o365exchange.pkgs.visualstudio.com`.
+Use root/web .npmrc and scripts/install-web.ps1 or scripts/install-web.sh. Authentication comes from the current Azure CLI account; tokens are not committed or printed. NuGet uses Microsoft's dotnet-public Azure Artifacts feed. Use separate artifacts/windows and artifacts/linux when building from Windows and WSL.
 
-NuGet uses Microsoft's public dotnet Azure Artifacts feed because direct NuGet.org TLS requests are unavailable on this machine.
-
-## Build isolation
-
-Windows and WSL must use separate `--artifacts-path` directories (`artifacts/windows` and `artifacts/linux`). Sharing `obj` across OS restores causes package path conflicts. The preview API uses 4417/4419 and `data/migration-preview`; it must not replace or expose the live state until migration validation is complete.
+See [migration.md](migration.md) for cutover, separate collector enrollment, retained state, and rollback. The service is application-authenticated: the owner reads data/ui-access-key to sign in. Reminders now use cross-platform SSE and browser notifications, rather than a Windows-only server toast.

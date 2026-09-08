@@ -1,6 +1,6 @@
 # Agent Dashboard — cross-platform architecture
 
-**Status:** Proposed target architecture. The current implementation remains Node.js; this document does not start the migration.
+**Status:** Implemented with .NET 10 and React/TypeScript. See the [migration guide](migration.md) and [adapter support matrix](adapters.md) for deployment and verification boundaries.
 
 **Goal:** Monitor agentic work across devices and maintain **at least three parallel running tasks** by default. More than three is healthy. Show runtime, latest output, and completed tasks awaiting review.
 
@@ -50,4 +50,4 @@ No inbound tunnel is required on collector devices. Cross-platform .NET support 
 
 Initially retain two authenticated persistent Dev Tunnels: one for ingestion, one for the UI and dashboard API. Keep transport configurable so a Linux deployment can use ordinary HTTPS domains later. Preserve device-scoped authentication independently of the tunnel provider.
 
-Migrate incrementally: define versioned JSON/OpenAPI contracts, replace the API service and collectors with .NET, then move the UI to React. Import existing state and preserve endpoint behavior where possible. Validate multi-device counts, offline/reconnect handling, completion acknowledgements, and adapters on all three operating systems before declaring migration complete.
+The migration preserves versioned JSON routes, imports legacy state into SQLite, and separates the original host collector from the API. Backend tests and collector packaging run on all three operating systems; vendor-local data readers are fixture-tested across platforms and live-checked where an installation is available.

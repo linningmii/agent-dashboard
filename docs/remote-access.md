@@ -1,79 +1,44 @@
-# Remote access with Microsoft Dev Tunnels
+# Remote access
 
-The dashboard automatically hosts a previously created persistent dev tunnel whenever the project starts. The browser URL belongs to that tunnel and port, so restarting or reconnecting reuses the same URL.
+The API runs two distinct listeners:
 
-For multi-device operation, configure distinct `ui` (4317) and `ingestion` (4319) entries as shown in `tunnel.example.json`. Both host automatically. `GET /api/tunnel` retains the UI-only response; `GET /api/tunnels` reports both. Use [device enrollment](multi-device.md) to connect collectors to the ingestion URL. Legacy single-tunnel configuration is still accepted for the UI.
+| Listener | Default port | Access |
+|---|---|---|
+| Dashboard UI + administration | 4317 | Service access key / session cookie |
+| Collector ingestion | 4319 | One-time enrollment code, then device-scoped token |
 
-## Your installation
+## Microsoft Dev Tunnels
 
-The machine-specific tunnel ID is stored in the ignored `tunnel.json` file. The default dashboard port is `4317`. To get the current browser URL, read `url` from [the local tunnel status endpoint](http://127.0.0.1:4317/api/tunnel) once it reports `hosting`.
+Copy tunnel.example.json to ignored tunnel.json and configure one persistent tunnel per port. Both retain owner-only Microsoft authentication in addition to application authentication. The API verifies that each tunnel has exactly its configured HTTP port, no expanded access rules, and no request timeout before hosting it.
 
-Open that URL on another device and sign in with the same Microsoft account that owns the tunnel. Microsoft may show its first-visit tunnel page before opening the dashboard. The dashboard computer must be awake, connected to the internet, and running the project.
-
-The friendly tunnel ID and browser hostname can differ; use the URL emitted by `devtunnel host` or `GET /api/tunnel` instead of constructing a URL from the tunnel name.
-
-## Start and reconnect
-
-```powershell
-npm start
-```
-
-Or start in the background on Windows:
-
-```powershell
-npm run start:background
-```
-
-The saved `tunnel.json` enables remote hosting. It contains the ID and port, not credentials. The CLI manages its own sign-in. Copy `tunnel.example.json` when setting up a different machine, signed into the owning account. Only one machine should host a tunnel at a time.
-
-The server checks owner-only access and exactly one HTTP port before hosting. It always uses the explicit saved ID and retries failed hosts with a delay capped at 60 seconds. Graceful server shutdown stops the tunnel process.
-
-This is automatic connection on **project startup**, not a Windows startup task. No system startup or sign-in settings have been installed.
-
-## URL lifetime and sign-in
-
-A persistent tunnel survives host-process restarts, but Microsoft supports expiration periods of up to 30 days. The project renews the saved tunnel to 30 days on startup and every 24 hours while running. If the project stays offline long enough for the tunnel to expire, its browser URL may be lost; it is not a permanently reserved domain.
-
-If authentication expires, run:
-
-```powershell
-devtunnel user show
-devtunnel user login --entra
-```
-
-The project retries the saved tunnel. It never enables anonymous access or automatically recreates an expired tunnel under a different URL.
-
-## Diagnostics
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:4317/api/tunnel
-Get-Content data/server.log -Tail 30
-Get-Content data/server-error.log -Tail 30
-```
-
-The status endpoint returns `starting`, `connecting`, `hosting`, or `retrying`, plus the observed URL and a diagnostic message. The background launcher writes logs under `data/`.
-
-Verify external HTML, API, and event streaming with:
-
-```powershell
-node scripts/verify-tunnel.mjs
-```
-
-This creates a scoped connect token in memory only for the test. The token is never printed or saved. The test also checks that unauthenticated requests hit the authentication gate. SSE keep-alives and an unlimited tunnel-port request timeout support live updates through the proxy.
-
-## Setup for another installation
+The tunnel worker starts on API startup, retries exits, and renews expiration to 30 days at startup and daily. URLs survive process restarts but can be lost if the tunnel expires after a long outage. The machine must remain awake and connected. Obtain both observed URLs from authenticated GET /api/tunnels; GET /api/tunnel remains the UI-only compatibility endpoint. Do not construct hostnames from friendly IDs.
 
 ```powershell
 devtunnel user login --entra
-devtunnel create YOUR-UNIQUE-ID --description 'Local Agent Dashboard' --expiration 30d
-devtunnel port create YOUR-ID.CLUSTER --port-number 4317 --protocol http --request-timeout 0
+devtunnel create YOUR-UI-ID --expiration 30d
+devtunnel port create YOUR-UI-ID.CLUSTER --port-number 4317 --protocol http --request-timeout 0
+devtunnel create YOUR-INGESTION-ID --expiration 30d
+devtunnel port create YOUR-INGESTION-ID.CLUSTER --port-number 4319 --protocol http --request-timeout 0
 ```
 
-Save the returned qualified ID in `tunnel.json`, following `tunnel.example.json`, then start the project. Do not add access rules: by default only the owner can connect. Remote users signed into the owner account can view task output and use the same clear/tracking/settings controls as the local dashboard.
+Open the UI URL, sign into the tunnel owner's Microsoft account, then enter the API service's access key. On the host, the default key is in data/ui-access-key. API clients may send Authorization: Bearer SERVICE_KEY. Collector clients use Authorization: Bearer DEVICE_TOKEN and, for private tunnels, X-Tunnel-Authorization: tunnel CONNECT_TOKEN. Tokens are never put into URLs.
 
-The server still binds to `127.0.0.1`; remote traffic passes through Microsoft's authenticated HTTPS relay. To disable remote access, set `enabled` to `false` in `tunnel.json` and restart.
+## Ordinary Linux hosting
 
-## References
+A tunnel is optional. Configure --bind for the internal listener address and --ingestion-url with the public HTTPS ingestion origin, then put an HTTPS reverse proxy in front of the two ports. Route each public origin only to its corresponding internal port, disable SSE response buffering, and allow streaming connections. The application validates access keys/device credentials independently of the proxy. Do not expose unencrypted listener ports to an untrusted network.
 
-- [Microsoft Dev Tunnels CLI reference](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/cli-commands)
-- [Microsoft Dev Tunnels security](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/security)
+The React build is served from the published API's wwwroot, or --web-root. If developing separately with Vite, /api is proxied to the API listener. No separate frontend server is needed for deployment.
+
+## Verify and troubleshoot
+
+```powershell
+pwsh scripts/verify-deployment.ps1 -Remote
+Get-Content data/hub.log -Tail 30
+Get-Content data/collector-error.log -Tail 30
+```
+
+The verifier checks authenticated HTML, UI/ingestion separation, synthetic device registration/reporting, completion/replay, and streamed updates. It revokes its temporary test device and acknowledges only its test notification. It keeps credentials in memory.
+
+For expired Dev Tunnels sign-in run devtunnel user login --entra. For an expired/revoked device, enroll it again. OS startup services are not installed automatically.
+
+[Microsoft CLI reference](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/cli-commands) · [Microsoft tunnel security](https://learn.microsoft.com/en-us/azure/developer/dev-tunnels/security)

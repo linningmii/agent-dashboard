@@ -9,9 +9,10 @@ public sealed record HubOptions(string DataDirectory, string WebRoot, int UiPort
     public static HubOptions Load(IConfiguration configuration)
     {
         var root = Environment.GetEnvironmentVariable("DASHBOARD_ROOT") ?? Directory.GetCurrentDirectory();
-        var data = configuration["data-dir"] ?? Environment.GetEnvironmentVariable("DASHBOARD_DATA_DIR") ?? Path.Combine(root, "data");
-        var ui = int.Parse(configuration["ui-port"] ?? Environment.GetEnvironmentVariable("PORT") ?? "4317");
-        var ingest = int.Parse(configuration["ingestion-port"] ?? Environment.GetEnvironmentVariable("INGESTION_PORT") ?? "4319");
+        var file = new ConfigurationBuilder().AddJsonFile(Environment.GetEnvironmentVariable("AGENT_DASHBOARD_CONFIG") ?? Path.Combine(root, "config.json"), optional: true).Build();
+        var data = configuration["data-dir"] ?? Environment.GetEnvironmentVariable("DASHBOARD_DATA_DIR") ?? file["dataDirectory"] ?? Path.Combine(root, "data");
+        var ui = int.Parse(configuration["ui-port"] ?? Environment.GetEnvironmentVariable("PORT") ?? file["port"] ?? "4317");
+        var ingest = int.Parse(configuration["ingestion-port"] ?? Environment.GetEnvironmentVariable("INGESTION_PORT") ?? file["ingestionPort"] ?? "4319");
         if (ui == ingest || ui is < 1 or > 65535 || ingest is < 1 or > 65535) throw new InvalidDataException("Two distinct valid ports are required");
         var uiTunnel = new TunnelOptions(); var ingestionTunnel = new TunnelOptions();
         var tunnelFile = Path.Combine(root, "tunnel.json");
@@ -24,7 +25,8 @@ public sealed record HubOptions(string DataDirectory, string WebRoot, int UiPort
         foreach (var (tunnel, port) in new[] { (uiTunnel, ui), (ingestionTunnel, ingest) })
             if (tunnel.Enabled && (tunnel.Port != port || string.IsNullOrWhiteSpace(tunnel.Id))) throw new InvalidDataException("Tunnel port/ID does not match listener");
         if (uiTunnel.Enabled && ingestionTunnel.Enabled && uiTunnel.Id == ingestionTunnel.Id) throw new InvalidDataException("Use two separate tunnels");
-        return new(Path.GetFullPath(data), configuration["web-root"] ?? Path.Combine(root, "web", "dist"), ui, ingest,
-            configuration["bind"] ?? "127.0.0.1", uiTunnel, ingestionTunnel, configuration["ingestion-url"] ?? Environment.GetEnvironmentVariable("DASHBOARD_INGESTION_URL"));
+        var packagedWeb = Path.Combine(AppContext.BaseDirectory, "wwwroot");
+        return new(Path.GetFullPath(data), configuration["web-root"] ?? (Directory.Exists(packagedWeb) ? packagedWeb : Path.Combine(root, "web", "dist")), ui, ingest,
+            configuration["bind"] ?? file["bindAddress"] ?? "127.0.0.1", uiTunnel, ingestionTunnel, configuration["ingestion-url"] ?? Environment.GetEnvironmentVariable("DASHBOARD_INGESTION_URL") ?? file["ingestionUrl"]);
     }
 }

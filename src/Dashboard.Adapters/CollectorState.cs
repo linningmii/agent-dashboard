@@ -24,7 +24,7 @@ public sealed class CollectorEngine(SqliteStateStore<CollectorState> store, IEnu
             foreach (var result in results)
             {
                 if (!result.Info.Available) continue;
-                tasks.AddRange(result.Tasks);
+                tasks.AddRange(result.Tasks.Where(task => task.Status != TaskStatus.Stale));
                 foreach (var task in result.Tasks) state.Observed[task.Id] = task;
                 foreach (var completion in result.Completions)
                 {
@@ -40,7 +40,8 @@ public sealed class CollectorEngine(SqliteStateStore<CollectorState> store, IEnu
             }
             tasks.AddRange(state.ManualTasks.Where(task => task.Status != TaskStatus.Completed));
             foreach (var task in state.Outbox.Concat<AgentTask>(tasks)) sources.TryAdd(task.Source, new(true, "Reported task", false));
-            return new() { SessionId = sessionId, Sequence = sequence, Sources = sources, Tasks = tasks.Take(500).ToList(), Completions = state.Outbox.Take(100).ToList() };
+            if (tasks.Count > 500) throw new InvalidOperationException("Collector report exceeds 500 tasks; refusing a silently truncated snapshot");
+            return new() { SessionId = sessionId, Sequence = sequence, Sources = sources, Tasks = tasks, Completions = state.Outbox.Take(100).ToList() };
         });
     }
     public void Acknowledge(DeviceReport report) => store.Update(state => state.Outbox.RemoveAll(item => report.Completions.Any(sent => sent.Id == item.Id)));

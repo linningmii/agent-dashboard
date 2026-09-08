@@ -22,6 +22,8 @@ public sealed class CollectorClient : IDisposable
     public async Task<T> Send<T>(string route, HttpMethod method, object? body, bool authenticate, CancellationToken token)
     {
         if (!route.StartsWith('/') || route.StartsWith("//", StringComparison.Ordinal)) throw new InvalidOperationException("Relative collector route required");
+        var destination = new Uri(http.BaseAddress!, route);
+        if (destination.Authority != http.BaseAddress!.Authority || destination.Scheme != http.BaseAddress.Scheme) throw new InvalidOperationException("Collector route must stay on its configured origin");
         using var request = new HttpRequestMessage(method, route);
         if (body is not null) request.Content = JsonContent.Create(body, options: Protocol.Json);
         request.Headers.Accept.ParseAdd("application/json");

@@ -15,3 +15,4 @@ artifacts/
 .vs/
 *.user
 web/*.tsbuildinfo
+**/TestResults/

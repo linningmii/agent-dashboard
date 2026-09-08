@@ -11,6 +11,12 @@ public sealed partial class TunnelWorker(HubOptions options, ILogger<TunnelWorke
     public TunnelState Ingestion { get; private set; } = new(options.IngestionTunnel.Enabled, options.IngestionTunnel.Enabled ? "starting" : "disabled", options.IngestionTunnel.Id);
     [GeneratedRegex(@"https://[a-z0-9-]+\.[a-z0-9]+\.devtunnels\.ms/?", RegexOptions.IgnoreCase)]
     private static partial Regex TunnelUrl();
+    public static string? BrowserUrl(string line, int port)
+    {
+        if (!line.Contains("Connect via browser:", StringComparison.OrdinalIgnoreCase)) return null;
+        var match = TunnelUrl().Match(line);
+        return match.Success && new Uri(match.Value).Host.Split('.')[0].EndsWith("-" + port, StringComparison.Ordinal) ? match.Value : null;
+    }
     public static async Task<string> RunCli(IEnumerable<string> args, CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(60));
@@ -49,13 +55,18 @@ public sealed partial class TunnelWorker(HubOptions options, ILogger<TunnelWorke
                 {
                     while (await reader.ReadLineAsync(childToken.Token) is { } line)
                     {
-                        var match = TunnelUrl().Match(line);
-                        if (match.Success) { state = state with { State = "hosting", Url = match.Value, Error = null }; update(state); attempts = 0; logger.LogInformation("Tunnel {Id}: {Url}", settings.Id, state.Url); }
+                        var url = BrowserUrl(line, settings.Port);
+                        if (url is not null) { state = state with { State = "hosting", Url = url, Error = null }; update(state); attempts = 0; logger.LogInformation("Tunnel {Id}: {Url}", settings.Id, state.Url); }
                     }
                 }
                 async Task Renew()
                 {
-                    while (true) { await Task.Delay(TimeSpan.FromHours(24), childToken.Token); await RunCli(["update", settings.Id!, "--expiration", "30d", "--json"], childToken.Token); }
+                    while (true)
+                    {
+                        await Task.Delay(TimeSpan.FromHours(24), childToken.Token);
+                        try { await RunCli(["update", settings.Id!, "--expiration", "30d", "--json"], childToken.Token); }
+                        catch (Exception) when (!childToken.IsCancellationRequested) { logger.LogWarning("Tunnel {Id} expiration renewal failed; check CLI sign-in", settings.Id); }
+                    }
                 }
                 var output = Read(process.StandardOutput); var errors = Read(process.StandardError); var renewal = Renew();
                 try { await process.WaitForExitAsync(token); }

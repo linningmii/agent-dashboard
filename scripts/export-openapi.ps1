@@ -1,4 +1,4 @@
-param([string]$BaseUrl = 'http://127.0.0.1:4417', [string]$AccessKeyFile = 'data/migration-preview/ui-access-key')
+param([string]$BaseUrl = 'http://127.0.0.1:4317', [string]$AccessKeyFile = 'data/ui-access-key')
 $ErrorActionPreference = 'Stop'
 $key = (Get-Content -LiteralPath $AccessKeyFile -Raw).Trim()
 $document = Invoke-RestMethod "$BaseUrl/openapi/v1.json" -Headers @{Authorization = "Bearer $key"}
