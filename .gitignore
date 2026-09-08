@@ -16,3 +16,4 @@ artifacts/
 *.user
 web/*.tsbuildinfo
 **/TestResults/
+npm-install.local.json

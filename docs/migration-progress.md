@@ -11,7 +11,7 @@ The production service has been cut over to the three-part .NET/React architectu
 - React sign-in, SSE, search, completion pagination/collapse/details, and mobile layout were inspected. On mobile, output is 16px and there is no horizontal overflow. Completion clearing was exercised via the API using isolated synthetic records.
 - All 16 legacy unread completions and the original device identity were preserved at cutover. Legacy JSON was copied to an ignored backup directory and retained unchanged.
 - Both original private Dev Tunnel URLs are hosted by the C# service. The deployed verifier passed authenticated React HTML, separate ingress, synthetic registration/reporting, completion/replay, and live SSE through the tunnels.
-- A clean Enzyme-only npm ci installed 97 packages successfully. Strict TypeScript checks and the Vite production build passed afterward. Every resolved package URL in the lockfile uses the Enzyme host.
+- At migration cutover, a clean Enzyme-only npm ci installed 97 packages successfully. Strict TypeScript checks and the Vite production build passed afterward. The later [package-source update](package-sources.md) uses portable public lockfile URLs with Enzyme available as a backup or explicit corporate source.
 
 ## Completion and verification boundaries
 
@@ -21,8 +21,17 @@ The production service has been cut over to the three-part .NET/React architectu
 - The React form created and completed a synthetic task and saved preferences against the isolated C# API.
 - Native vendor app installations on macOS/Linux are not available here; [adapter support](adapters.md) distinguishes cross-platform fixtures/runtime tests from live installed-agent validation. No claim is made that every vendor app version has been certified.
 
+## September 9 completion audit
+
+- Rebuilt the current worktree with `pwsh scripts/build.ps1 -Output artifacts/verification-final`: all 19 backend tests, strict TypeScript checks, Vite build, and API/collector publishing passed.
+- Exported the running OpenAPI document and regenerated the TypeScript client; neither artifact differs from the committed contract.
+- Re-ran `pwsh scripts/verify-deployment.ps1 -Remote`: authenticated React delivery, separate listeners, device registration/reporting, completion acknowledgement/replay, and live SSE passed through both original tunnel URLs.
+- All 16 legacy unread completions and the original device ID remain present. Both retained legacy JSON files still match their cutover backups byte for byte.
+- The existing API and collector are separate live processes. The launcher recognized both and did not create duplicates.
+- The npm installer has 11 passing tests and a verified clean Enzyme download/build with portable lockfile URLs. Public-registry installation and current three-OS CI verification are pending.
+
 ## Build policy and rollback
 
-Use root/web .npmrc and scripts/install-web.ps1 or scripts/install-web.sh. Authentication comes from the current Azure CLI account; tokens are not committed or printed. NuGet uses Microsoft's dotnet-public Azure Artifacts feed. Use separate artifacts/windows and artifacts/linux when building from Windows and WSL.
+Use `npm run setup:web`, scripts/install-web.ps1, or scripts/install-web.sh. Installs default to npmjs with Enzyme fallback; corporate devices can select Enzyme directly. Public installs require no Azure authentication. Enzyme accepts existing npm credentials, an environment token, or the current Azure CLI account. NuGet uses Microsoft's dotnet-public Azure Artifacts feed. Use separate artifacts/windows and artifacts/linux when building from Windows and WSL.
 
 See [migration.md](migration.md) for cutover, separate collector enrollment, retained state, and rollback. The service is application-authenticated: the owner reads data/ui-access-key to sign in. Reminders now use cross-platform SSE and browser notifications, rather than a Windows-only server toast.

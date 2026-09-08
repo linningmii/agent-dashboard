@@ -4,6 +4,8 @@
   "private": true,
   "description": "Cross-platform agent monitoring: ASP.NET Core API, .NET collectors, React and TypeScript UI",
   "scripts": {
+    "setup:web": "node --experimental-strip-types scripts/install-web.ts",
+    "test:installer": "node --experimental-strip-types --test scripts/npm-registry.test.ts",
     "start": "dotnet run --project src/Dashboard.Api",
     "collector": "dotnet run --project src/Dashboard.Collector --",
     "device:enroll": "dotnet run --project src/Dashboard.Collector -- enroll",

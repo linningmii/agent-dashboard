@@ -30,4 +30,4 @@ Stop the .NET API, collector, and their tunnel-host processes. Use a separate ch
 
 ## Package policy
 
-Use only the corporate Enzyme feed for npm. Root/web .npmrc and the committed web lockfile select it. install-web.ps1 and install-web.sh use the current Azure CLI identity; no token is committed, logged, or placed in a package URL. The UI build needs Enzyme access, while deployed .NET binaries need neither npm nor Node. NuGet uses Microsoft's dotnet-public Azure Artifacts feed.
+Run `npm run setup:web` (or install-web.ps1/install-web.sh) for a locked install from npmjs with Enzyme fallback on access or connectivity failures. Root/web .npmrc and the committed lockfile use public npm URLs; npm substitutes the registry when Enzyme is selected, preserving package versions and integrity hashes. Corporate devices can select Enzyme directly using the ignored npm-install.local.json or `--registry enzyme`. See [package sources](package-sources.md) for authentication and overrides. Deployed .NET binaries need neither npm nor Node. NuGet still uses Microsoft's dotnet-public Azure Artifacts feed.

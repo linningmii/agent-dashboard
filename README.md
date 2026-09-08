@@ -14,19 +14,21 @@ The API host needs no installed agents. Run a separate collector on every monito
 
 ## Build
 
-Requires .NET 10 SDK and Node.js 22.12+ for the frontend build. **npm packages must come from the corporate Enzyme feed**, configured in both .npmrc files. Authenticate using your approved Azure Artifacts credentials, or an existing Azure CLI sign-in:
+Requires .NET 10 SDK and Node.js 22.12+ for the frontend build. The installer tries **npmjs first**, then the **Enzyme backup** when public registry access is denied or unavailable. A successful public install needs no Microsoft account or Azure CLI.
 
 ```powershell
-pwsh ./scripts/install-web.ps1 -Clean
+npm run setup:web
 pwsh ./scripts/build.ps1
 ```
 
-On Linux/macOS with an Azure CLI sign-in:
+On Linux/macOS:
 
 ```sh
 sh scripts/install-web.sh
 sh scripts/build.sh
 ```
+
+On corporate devices where npmjs is blocked, select Enzyme directly with `npm run setup:web -- --registry enzyme`. Enzyme requires feed access through existing npm credentials, `ENZYME_NPM_TOKEN`, or an Azure CLI sign-in (`az login`). Save `{ "registry": "enzyme" }` in the ignored root `npm-install.local.json` to make this the device default. See [package sources](docs/package-sources.md) for overrides, authentication, and lockfile updates.
 
 NuGet uses Microsoft's dotnet-public Azure Artifacts feed. The build runs backend tests, checks TypeScript, builds the UI, and publishes the API and collector under artifacts/release. There are no JavaScript backend or collector processes.
 
@@ -67,4 +69,4 @@ For manual agent tracking, use the dashboard or the collector's report/complete 
 - Refresh generated API types: pwsh scripts/export-openapi.ps1, then npm --prefix web run generate:api
 - Verify deployed private tunnels: pwsh scripts/verify-deployment.ps1 -Remote
 
-The [architecture one-pager](docs/architecture-onepager.md), [design](docs/design.md), [migration/rollback guide](docs/migration.md), and [interface notes](docs/interface.md) document the system. GitHub Actions verifies backend tests and collector publishing on Linux, Windows, and macOS. Building the UI requires access to Enzyme; it never falls back to npmjs.org.
+The [architecture one-pager](docs/architecture-onepager.md), [design](docs/design.md), [migration/rollback guide](docs/migration.md), and [interface notes](docs/interface.md) document the system. GitHub Actions verifies backend tests, collector publishing, installer tests, and public-registry UI builds on Linux, Windows, and macOS.
