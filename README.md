@@ -4,6 +4,8 @@ A local, live control plane for keeping a minimum number of agentic tasks in fli
 
 See [the design document](docs/design.md) for architecture, adapter behavior, data flow, security, and extension guidance.
 
+See the [cross-platform architecture one-pager](docs/architecture-onepager.md) for the proposed React/TypeScript UI, C# API service, and .NET collector. This describes the next architecture; the current implementation is still Node.js.
+
 ## Multiple devices
 
 One central dashboard merges tasks from its own computer and enrolled collectors. Each task carries a device name; offline devices stop contributing to the global minimum after 45 seconds. The browser/UI tunnel and device-ingestion tunnel are separate and authenticated.

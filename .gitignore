@@ -8,3 +8,10 @@ config.json
 .env
 .env.*
 !.env.example
+**/bin/
+**/obj/
+web/dist/
+artifacts/
+.vs/
+*.user
+web/*.tsbuildinfo

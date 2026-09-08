@@ -1,0 +1,28 @@
+name: Verify .NET migration
+on:
+  push:
+    branches: [main, migration/dotnet-react]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backend:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore AgentDashboard.slnx --configfile NuGet.Config
+      - run: dotnet test AgentDashboard.slnx --no-restore --configuration Release --logger trx
+      - run: dotnet publish src/Dashboard.Collector --no-restore --configuration Release --no-self-contained -o artifacts/collector
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}
+          path: tests/**/TestResults/*.trx
