@@ -2,6 +2,8 @@
 
 The production service has been cut over to the three-part .NET/React architecture. The original Node runtime is removed from the working tree and recoverable at Git commit ef36684.
 
+**Migration complete on `migration/dotnet-react`.** The final implementation and portable package-source update are verified locally and on all three CI operating systems. The branch is pushed separately from `main`; the adapter validation limits below remain explicit.
+
 ## Evidence
 
 - C# API, standalone C# collector, strict TypeScript/React UI, and generated OpenAPI client build successfully.
@@ -28,7 +30,26 @@ The production service has been cut over to the three-part .NET/React architectu
 - Re-ran `pwsh scripts/verify-deployment.ps1 -Remote`: authenticated React delivery, separate listeners, device registration/reporting, completion acknowledgement/replay, and live SSE passed through both original tunnel URLs.
 - All 16 legacy unread completions and the original device ID remain present. Both retained legacy JSON files still match their cutover backups byte for byte.
 - The existing API and collector are separate live processes. The launcher recognized both and did not create duplicates.
-- The npm installer has 11 passing tests and a verified clean Enzyme download/build with portable lockfile URLs. Public-registry installation and current three-OS CI verification are pending.
+- [Final implementation CI run 34251004723](https://github.com/linningmii/agent-dashboard/actions/runs/34251004723), commit `a13aaa7`, passed all six jobs: backend and frontend on Windows, Linux, and macOS. Each backend job passed 19 tests and packaged collector execution. Each frontend job passed 11 installer tests, a real public-only clean install, the UI build, and unchanged-lockfile verification. No Microsoft credentials were used by the frontend jobs.
+- A clean local Enzyme download/build also passed, with 97 HTTP fetches and no npmjs request. All 147 normalized lockfile URLs preserve versions, integrity hashes, and other metadata. Both package sources now work with the same committed lockfile.
+- Rechecked the React UI against an isolated published API: sign-in, live connection, task creation/completion, final output, source filtering without changing the global count, acknowledgement, saved preferences, newest-five pagination, Show more, and inbox collapse all passed. At 390px width, there was no horizontal overflow and captured output used 16px text. No browser console errors were recorded.
+- Republished the verified API and collector into the live release, retained the previous release under artifacts, and restarted both processes. All checked application assemblies match the verified build byte for byte, the collector reconnected, and every pre-restart completion remains present. Both original private tunnels passed the deployment verifier again after restart.
+
+### Requirement audit
+
+| Requirement | Current evidence |
+|---|---|
+| React/TypeScript UI, C# API, separate C# collector | Local publish, deployed assembly/asset comparison, independent live processes |
+| Linux host and Windows/macOS/Linux collectors | Real API/CLI integration tests and packaged collector execution on all three CI systems |
+| Device authentication, ingestion isolation, heartbeats, offline counts, replay safety | Hub/HTTP tests plus authenticated remote deployment verification |
+| Legacy settings, identity, unread history, rollback inputs | Import tests; 16 preserved unread entries and matching legacy backup hashes; previous release retained |
+| Live counts, runtime/output, filters, completion inbox, preferences | Typed React build and isolated browser checks described above |
+| Reminders only below the minimum, including repeated reminders | Reminder tests at/below/above threshold; connected-browser delivery over SSE |
+| Generated versioned contract | Live OpenAPI export and regenerated TypeScript match committed files |
+| Portable npm installation with corporate backup | Public clean installs on all three CI systems; clean authenticated Enzyme install locally; fallback/authentication unit tests |
+| Existing private tunnel addresses | Remote verifier passed before and after final deployment using the original two URLs |
+
+Vendor-app lifecycle coverage remains as documented in [adapters.md](adapters.md): Codex is live-checked on Windows, Copilot uses explicit manual reports, and uncertain Claude transcript activity is not counted as confirmed running. OS CI validates adapters with fixtures; it does not claim live vendor-app certification on macOS/Linux.
 
 ## Build policy and rollback
 
