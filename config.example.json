@@ -1,0 +1,7 @@
+{
+  "port": 4317,
+  "minimumRunning": 3,
+  "pollIntervalMs": 2000,
+  "reminderCooldownMinutes": 15,
+  "windowsNotifications": true
+}

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172b28">
+  <title>Agent Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to dashboard</a>
+  <aside class="sidebar" aria-label="Dashboard navigation">
+    <a class="brand" href="#overview" aria-label="Agent Dashboard home"><span class="brand-mark" data-icon="brand"></span><span>agent<span class="brand-secondary">dashboard</span></span></a>
+    <div class="workspace-label"><span class="workspace-avatar" data-icon="terminal"></span><div>Personal workspace<small>On this computer</small></div><span class="tiny-dot"></span></div>
+    <p class="nav-label">WORKSPACE</p>
+    <nav>
+      <a class="nav-link active" href="#overview"><span data-icon="grid"></span>Overview</a>
+      <a class="nav-link" id="inbox-link" href="#completed-panel"><span data-icon="inbox"></span>Completed<span id="nav-completed-count" class="nav-count">0</span></a>
+      <a class="nav-link" href="#settings-panel"><span data-icon="sliders"></span>Preferences</a>
+    </nav>
+    <div class="sidebar-note"><span data-icon="layers"></span><p>Make room for<br>the next good idea.</p><span>Keep your agents in motion.</span></div>
+    <div class="sidebar-footer"><span data-icon="shield"></span><div>Local by design<small>Powered by your own computer.</small></div></div>
+  </aside>
+  <div class="app-shell">
+    <header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>Overview</strong></div><div id="connection" class="connection" data-state="connecting" role="status"><span class="tiny-dot"></span><span id="connection-label">Connecting</span></div></header>
+    <main id="main">
+      <section id="overview" class="page-heading"><div><p class="eyebrow">YOUR AGENT WORKSPACE</p><h1>Your work, in motion<span>.</span></h1><p>A clear view of what’s running and what’s ready for you.</p></div><button id="add-button" class="button button-primary" type="button"><span data-icon="plus"></span>Track a task</button></section>
+      <section id="hero" class="capacity-card" aria-labelledby="capacity-heading">
+        <div class="capacity-summary"><p class="eyebrow" id="capacity-heading">PARALLEL TASKS</p><div class="capacity-number"><strong id="running-count">—</strong><span>running<small>Minimum <span id="minimum-count">3</span> · more is welcome</small></span></div><p id="capacity-message">Finding your active tasks…</p></div>
+        <div class="capacity-visual"><div class="capacity-visual-heading"><span id="capacity-status">Waiting for a signal</span><span id="capacity-percent">—</span></div><div id="capacity-slots" class="capacity-slots" aria-label="Progress toward your task minimum"></div><div class="capacity-legend"><span><i></i>Running</span><span id="minimum-gap-legend"><i class="open"></i>Needed for minimum</span><span id="above-minimum-legend" hidden><i class="extra"></i>Above minimum</span><span id="capacity-target">Minimum: 3</span></div><p id="running-overflow" class="running-overflow" hidden></p></div>
+      </section>
+      <section class="sources" aria-label="Filter tasks by agent">
+        <button class="source-card" data-source="codex" aria-pressed="false" type="button"><span class="agent-icon codex" data-icon="codex"></span><span class="source-name">Codex<small id="codex-detail">Checking availability</small></span><span class="source-metric"><strong id="codex-count">—</strong><small>running</small></span></button>
+        <button class="source-card" data-source="copilot" aria-pressed="false" type="button"><span class="agent-icon copilot" data-icon="copilot"></span><span class="source-name">GitHub Copilot<small id="copilot-detail">Checking availability</small></span><span class="source-metric"><strong id="copilot-count">—</strong><small>running</small></span></button>
+        <button class="source-card" data-source="claude" aria-pressed="false" type="button"><span class="agent-icon claude" data-icon="claude"></span><span class="source-name">Claude Code<small id="claude-detail">Checking availability</small></span><span class="source-metric"><strong id="claude-count">—</strong><small>running</small></span></button>
+      </section>
+      <div class="work-grid">
+        <div class="work-main">
+          <section class="running-section" aria-labelledby="running-heading">
+            <div class="section-heading"><h2 id="running-heading">In progress <span id="active-count" class="count-badge">0</span></h2><span class="section-caption"><span class="tiny-dot"></span>Live activity</span></div>
+            <div class="task-toolbar"><button id="all-sources-button" class="filter-button" type="button"><span data-icon="layers"></span><span id="filter-label">All agents</span><span data-icon="close"></span></button><label class="search-field"><span data-icon="search"></span><input id="task-search" type="search" placeholder="Find a task…" aria-label="Search running and completed tasks"></label></div>
+            <div id="task-list" class="task-list"><div class="empty-state"><span data-icon="activity"></span><h3>Connecting to your workspace</h3><p>Your tasks will appear here in a moment.</p></div></div>
+          </section>
+          <section id="completed-panel" class="completed-panel" aria-labelledby="completed-heading">
+            <div class="section-heading"><h2 id="completed-heading"><button id="toggle-completed-button" class="disclosure-button" type="button" aria-expanded="true" aria-controls="completed-content"><span class="disclosure-icon" data-icon="chevron"></span>Completed <span id="completed-count" class="count-badge">0</span></button></h2><button id="clear-all-button" class="button button-quiet" type="button" disabled title="Mark every completion as read"><span data-icon="checks"></span>Clear all</button></div>
+            <div id="completed-content"><p class="section-description">Ready for your review. Clear a task to mark it as read.</p><div id="completed-list" class="completed-list"></div><div id="completed-pagination" class="completed-pagination" hidden><span id="completed-range"></span><div><button id="show-less-button" class="button button-quiet" type="button" hidden>Show less</button><button id="show-more-button" class="button button-quiet" type="button">Show 5 more</button></div></div></div>
+          </section>
+        </div>
+        <aside class="work-aside">
+          <section id="settings-panel" class="settings-card" aria-labelledby="settings-heading"><div class="aside-heading"><span class="aside-icon" data-icon="bell"></span><h2 id="settings-heading">Keep the momentum</h2></div><p>Keep at least your chosen number of tasks running. More is welcome; reminders only appear below this minimum.</p><form id="settings-form"><label for="minimum-input">Minimum parallel tasks</label><div class="stepper"><button id="target-minus" type="button" aria-label="Decrease task minimum"><span data-icon="minus"></span></button><input id="minimum-input" type="number" min="1" max="20" value="3" required><button id="target-plus" type="button" aria-label="Increase task minimum"><span data-icon="plus"></span></button></div><label for="cooldown-input">Remind me every</label><select id="cooldown-input"><option value="5">5 minutes</option><option value="15" selected>15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select><button class="button button-secondary" type="submit">Save preferences</button><p id="settings-feedback" class="form-feedback" role="status"></p></form><div class="settings-footnote"><span data-icon="shield"></span>Reminders run on this computer.</div></section>
+          <button id="browser-notifications" class="button button-quiet notification-button" type="button" hidden><span data-icon="bell"></span><span id="notification-label">Enable browser reminders</span></button>
+          <div class="workspace-note"><span data-icon="spark"></span><h3>Less checking.<br>More creating.</h3><p>Leave this workspace open.<br>We’ll keep the view up to date.</p></div>
+        </aside>
+      </div>
+      <footer class="page-footer"><span><span class="tiny-dot"></span>All systems, one workspace.</span><span>Agent Dashboard · Local</span></footer>
+    </main>
+  </div>
+  <dialog id="task-dialog" aria-labelledby="task-dialog-title"><form id="task-form"><div class="dialog-heading"><span class="eyebrow">ADD TO YOUR WORKSPACE</span><button type="button" class="button-icon" id="close-dialog" aria-label="Close task form"><span data-icon="close"></span></button></div><h2 id="task-dialog-title">What are you working on?</h2><p>Track a task that isn’t picked up automatically.</p><label>Agent<select id="task-source"><option value="copilot">GitHub Copilot</option><option value="claude">Claude Code</option></select></label><label>Task name<input id="task-title" required maxlength="200" placeholder="e.g. Refine the checkout experience"></label><label>Workspace <span class="optional">Optional</span><input id="task-workspace" maxlength="500" placeholder="Repository or folder path"></label><label>Latest update <span class="optional">Optional</span><textarea id="task-output" maxlength="2000" rows="3" placeholder="What’s happening right now?"></textarea></label><label>Keep tracked for<select id="lease-input"><option value="60">1 hour</option><option value="240" selected>4 hours</option><option value="480">8 hours</option></select></label><p id="task-error" class="form-error" role="alert"></p><div class="dialog-actions"><button id="cancel-task" class="button button-quiet" type="button">Cancel</button><button class="button button-primary" type="submit"><span data-icon="plus"></span>Start tracking</button></div></form></dialog>
+  <dialog id="detail-dialog" aria-labelledby="detail-title"><div class="detail-inner"><div class="dialog-heading"><span id="detail-source" class="eyebrow"></span><button id="close-detail" class="button-icon" type="button" aria-label="Close task details"><span data-icon="close"></span></button></div><h2 id="detail-title"></h2><p id="detail-workspace" class="detail-workspace"></p><p id="detail-time" class="detail-time"></p><div class="detail-output-heading"><span data-icon="message"></span><h3>Latest captured update</h3></div><pre id="detail-output"></pre></div></dialog>
+  <div id="toast" role="status"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

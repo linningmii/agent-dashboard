@@ -1,0 +1,16 @@
+{
+  "name": "agent-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local live dashboard for Codex and GitHub Copilot agentic tasks",
+  "scripts": {
+    "start": "node --experimental-sqlite src/server.mjs",
+    "start:background": "powershell.exe -NoProfile -File scripts/start-background.ps1",
+    "dev": "node --experimental-sqlite --watch src/server.mjs",
+    "test": "node --experimental-sqlite --test"
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}

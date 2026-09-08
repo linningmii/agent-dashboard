@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "id": "your-persistent-tunnel.cluster",
+  "port": 4317
+}
