@@ -11,13 +11,14 @@ Target: [architecture one-pager](architecture-onepager.md). Work is in progress;
 - React + strict TypeScript/Vite UI and OpenAPI-generated types/client, retaining the existing design and global minimum behavior.
 - Enzyme-only npm configuration and lockfile. Installation succeeded using the existing Entra login. No npmjs.org package downloads are required or permitted.
 - Windows and Ubuntu/WSL builds and 16 C# tests pass, including live HTTP listener isolation and migration-import checks. React sign-in and SSE rendering were verified, and the Windows .NET collector enrolled and delivered a real local snapshot to the isolated API.
-- A GitHub Actions matrix is prepared for Linux, Windows, and macOS backend verification; its remote result is not yet verified.
+- GitHub Actions run 34202626860 passed backend tests and collector publishing on Linux, Windows, and macOS for commit 628a39d. These are fixture/runtime checks, not native installed-agent certification.
+- React completion pagination, collapse, and full output details were exercised against the isolated C# API.
 
 ## Remaining before completion
 
 - Finish native HTTP/collector integration and runtime verification on Linux and Windows; add cross-platform CI, including macOS adapter fixtures. Native macOS agent-app verification has not yet been performed.
 - Audit and improve adapter parity: Codex legacy/current schemas and current-turn selection; Claude transcript states are estimated and must not count as active generation. Validate metadata and final outputs against the current installation.
-- Finish React browser checks for task filtering, completion acknowledgement, and mobile layout. Login/SSE and the generated client/build already work.
+- Finish React browser checks for task filtering, completion acknowledgement, and mobile layout. Login/SSE, pagination, collapse, details, and the generated client/build already work.
 - Migrate live state safely, enroll a separate collector for the original host, preserve the two existing tunnel URLs, and verify live data and reminders.
 - Replace default launch/build/package instructions and scripts with the .NET/React workflow, remove obsolete runtime files after successful cutover, and document rollback.
 - Update architecture and operations docs to distinguish the final implementation from the old Node system. Commit/push only validated changes.
