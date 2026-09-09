@@ -9,7 +9,25 @@ public sealed partial class HubService(SqliteStateStore<HubState> store, TimePro
     private DateTimeOffset Now => clock.GetUtcNow();
     public const int LeaseSeconds = 45;
     public const string ManualDeviceId = "manual";
-    public string CookieKey => store.Update(state => state.CookieKey);
+    public void ConfigureUiCredential(string? hash) => store.Update(state =>
+    {
+        if (state.UiCredentialHash != hash) state.UiSessions.Clear();
+        state.UiCredentialHash = hash;
+        return true;
+    });
+    public bool UiCredentialMatches(string hash) => store.Read(state => state.UiCredentialHash == hash);
+    public string CreateUiSession(string hash) => store.Update(state =>
+    {
+        Require(state.UiCredentialHash == hash, "Dashboard credentials changed; restart this API", 401);
+        foreach (var expired in state.UiSessions.Where(pair => pair.Value <= Now).Select(pair => pair.Key).ToArray()) state.UiSessions.Remove(expired);
+        Require(state.UiSessions.Count < 1024, "Too many dashboard sessions", 429);
+        var token = Credentials.Token();
+        state.UiSessions[Credentials.Hash(token)] = Now.AddDays(7);
+        return token;
+    });
+    public bool UiSessionValid(string hash, string token) => store.Read(state => state.UiCredentialHash == hash &&
+        state.UiSessions.TryGetValue(Credentials.Hash(token), out var expires) && expires > Now);
+    public void RevokeUiSession(string token) => store.Update(state => state.UiSessions.Remove(Credentials.Hash(token)));
     public static string TaskKey(string device, string task) => "device:" + device + ":" + Uri.EscapeDataString(task);
     [GeneratedRegex("^[a-z][a-z0-9-]{0,39}$")]
     private static partial Regex SourcePattern();

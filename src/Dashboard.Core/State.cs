@@ -25,7 +25,8 @@ public sealed class HubState
     public List<AgentTask> ManualTasks { get; set; } = [];
     public string? LegacyLocalDeviceId { get; set; }
     public bool LegacyImported { get; set; }
-    public string CookieKey { get; set; } = Credentials.Token();
+    public string? UiCredentialHash { get; set; }
+    public Dictionary<string, DateTimeOffset> UiSessions { get; set; } = [];
 }
 public sealed class DomainException(int status, string message) : Exception(message)
 {

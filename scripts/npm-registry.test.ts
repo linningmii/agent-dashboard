@@ -91,7 +91,8 @@ test('fallback authenticates only at Enzyme after public access is denied',async
 test('lock updates select npm install and normalize successful Enzyme output',async t=>{
   const {root}=fixture(t);const lockPath=path.join(root,'web/package-lock.json');
   const updated={lockfileVersion:3,packages:{'node_modules/react':{version:'19.1.1',integrity:'sha512-pinned',resolved:registries.enzyme+'react/-/react-19.1.1.tgz'}}};
-  await installWeb({root,npmCli:'npm-cli.js',mode:'enzyme',updateLock:true,env:{},log(){},run:async(_,args)=>{
+  await installWeb({root,npmCli:'npm-cli.js',mode:'enzyme',updateLock:true,env:{},log(){},run:async(_,args,_env,cwd)=>{
+    assert.equal(cwd,path.join(root,'web'));
     assert.equal(args[1],'install');fs.writeFileSync(lockPath,JSON.stringify(updated));return ok;
   }});
   const item=JSON.parse(fs.readFileSync(lockPath,'utf8')).packages['node_modules/react'];

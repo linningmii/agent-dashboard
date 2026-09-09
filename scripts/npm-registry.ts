@@ -10,7 +10,7 @@ export const registries = {
 export type Registry = keyof typeof registries;
 export type Mode = Registry | 'auto';
 export type CommandResult = { code: number; output: string };
-export type Run = (command: string, args: string[], env: NodeJS.ProcessEnv) => Promise<CommandResult>;
+export type Run = (command: string, args: string[], env: NodeJS.ProcessEnv, cwd?: string) => Promise<CommandResult>;
 
 export function registryMode(value: unknown): Mode {
   if (value === 'auto' || value === 'npmjs' || value === 'enzyme') return value;
@@ -56,8 +56,8 @@ export function findNpmCli(): string {
   return cli;
 }
 
-export const runCommand: Run = (command, args, env) => new Promise((resolve, reject) => {
-  const child = spawn(command, args, { env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+export const runCommand: Run = (command, args, env, cwd) => new Promise((resolve, reject) => {
+  const child = spawn(command, args, { env, cwd, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
   let output = '';
   const collect = (chunk: Buffer) => { output = (output + chunk.toString()).slice(-32768); };
   child.stdout.on('data', collect); child.stderr.on('data', collect);
@@ -104,7 +104,7 @@ export async function installWeb(options: {
   async function attempt(registry: Registry, authenticated = false): Promise<CommandResult> {
     log('Installing locked dependencies from ' + registry + '…');
     const commandEnv = { ...env };
-    const args = [npmCli, updateLock ? 'install' : 'ci', '--prefix', web, '--registry=' + registries[registry],
+    const args = [npmCli, updateLock ? 'install' : 'ci', '--registry=' + registries[registry],
       '--replace-registry-host=npmjs', '--ignore-scripts', '--no-audit', '--no-fund', '--update-notifier=false', '--fetch-retries=0', '--fetch-timeout=20000', '--loglevel=error'];
     if (authenticated) {
       secret = await (options.getToken ?? (() => acquireEnzymeToken(run, env)))();
@@ -118,7 +118,7 @@ export async function installWeb(options: {
       // Corporate token is irrelevant to a public install and must not be inherited.
       delete commandEnv.ENZYME_NPM_TOKEN;
     }
-    return run(process.execPath, args, commandEnv);
+    return run(process.execPath, args, commandEnv, web);
   }
   function failure(result: CommandResult): Error {
     let output = result.output;

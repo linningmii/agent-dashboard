@@ -44,6 +44,10 @@ Configuration precedence: `--ui-auth dev-tunnel`, then `DASHBOARD_UI_AUTH`, then
 
 API clients using a private tunnel send `X-Tunnel-Authorization: tunnel CONNECT_TOKEN`. In access-key mode they additionally send `Authorization: Bearer SERVICE_KEY`, or browsers enter the host’s `data/ui-access-key` once per seven-day session. Collector clients always use `Authorization: Bearer DEVICE_TOKEN` and, for private tunnels, `X-Tunnel-Authorization: tunnel CONNECT_TOKEN`. Tokens are never put into URLs.
 
+Access-key sessions are stored as hashed tokens with expiry on the server. Logout revokes that session, including copied cookies; changing the access key and restarting the API invalidates all existing sessions. Switching to tunnel mode also clears access-key sessions. Upgrading from the old stateless cookie format requires signing in again. Active SSE connections stop after revocation (within the next event or 15-second heartbeat).
+
+Dashboard login and collector enrollment have separate limits of ten requests per minute per network peer. Forwarded-IP headers are not trusted. When clients arrive through a proxy or tunnel, they share that proxy’s peer bucket for the same operation; enforce additional per-user/client limits at a trusted edge for shared deployments. Enrollment traffic cannot consume the dashboard-login bucket.
+
 ## Ordinary Linux hosting
 
 A tunnel is optional. Use `uiAuthentication: access-key`, configure --bind for the internal listener address and --ingestion-url with the public HTTPS ingestion origin, then put an HTTPS reverse proxy in front of the two ports. Route each public origin only to its corresponding internal port, disable SSE response buffering, and allow streaming connections. The application validates access keys/device credentials independently of the proxy. Do not expose unencrypted listener ports to an untrusted network.

@@ -19,7 +19,7 @@ builder.Services.AddSingleton<UiAuthentication>();
 builder.Services.AddSingleton<TunnelWorker>(); builder.Services.AddHostedService(s => s.GetRequiredService<TunnelWorker>());
 builder.Services.AddSingleton<SnapshotWorker>(); builder.Services.AddHostedService(s => s.GetRequiredService<SnapshotWorker>());
 builder.Services.AddOpenApi();
-builder.Services.AddRateLimiter(o => { o.RejectionStatusCode = 429; o.AddFixedWindowLimiter("login", p => { p.PermitLimit = 10; p.Window = TimeSpan.FromMinutes(1); p.QueueLimit = 0; }); });
+builder.Services.AddRateLimiter(AuthenticationRateLimits.Configure);
 var app = builder.Build();
 LegacyImporter.Import(app.Services.GetRequiredService<SqliteStateStore<HubState>>(), options.DataDirectory);
 _ = app.Services.GetRequiredService<UiAuthentication>();
@@ -53,8 +53,8 @@ app.MapPost("/api/auth/login", (LoginInput input, HttpContext c, UiAuthenticatio
     if (!auth.Login(input.AccessKey)) throw new DomainException(401, "Invalid access key");
     c.Response.Cookies.Append(UiAuthentication.CookieName, auth.Issue(), new CookieOptions { HttpOnly = true, SameSite = SameSiteMode.Strict, Secure = c.Request.IsHttps || c.Request.Headers["X-Forwarded-Proto"] == "https", MaxAge = TimeSpan.FromDays(7), Path = "/" });
     return new AuthInfo(true, true);
-}).RequireRateLimiting("login");
-app.MapPost("/api/auth/logout", (HttpContext c, UiAuthentication auth) => { c.Response.Cookies.Delete(UiAuthentication.CookieName); return new AuthInfo(!auth.RequiresLogin && auth.Authorized(c.Request), auth.RequiresLogin); });
+}).RequireRateLimiting("dashboard-login");
+app.MapPost("/api/auth/logout", (HttpContext c, UiAuthentication auth) => { auth.Logout(c.Request); c.Response.Cookies.Delete(UiAuthentication.CookieName); return new AuthInfo(!auth.RequiresLogin && auth.Authorized(c.Request), auth.RequiresLogin); });
 app.MapGet("/api/status", (HubService hub) => hub.Snapshot());
 app.MapGet("/api/tunnel", (TunnelWorker tunnels) => tunnels.Ui);
 app.MapGet("/api/tunnels", (TunnelWorker tunnels) => new TunnelStates(tunnels.Ui, tunnels.Ingestion));
@@ -67,21 +67,21 @@ app.MapPost("/api/tasks/{id}/heartbeat", (string id, HeartbeatInput input, HubSe
 app.MapDelete("/api/completions", (HubService hub) => hub.Clear(null));
 app.MapDelete("/api/completions/{id}", (string id, HubService hub) => hub.Clear(id));
 app.MapGet("/health", () => new HealthResponse("agent-dashboard-ingestion"));
-app.MapPost("/v1/devices/register", (EnrollmentRequest input, HubService hub) => hub.Enroll(input)).RequireRateLimiting("login");
+app.MapPost("/v1/devices/register", (EnrollmentRequest input, HubService hub) => hub.Enroll(input)).RequireRateLimiting("device-enrollment");
 string? Token(HttpContext c) => c.Request.Headers.Authorization.ToString() is var h && h.StartsWith("Bearer ", StringComparison.Ordinal) ? h[7..] : null;
 app.MapPost("/v1/devices/{id}/sessions", (string id, HttpContext c, HubService hub) => hub.OpenSession(id, Token(c)));
 app.MapPut("/v1/devices/{id}/snapshot", (string id, DeviceReport report, HttpContext c, HubService hub) => hub.Report(id, Token(c), report));
-app.MapGet("/api/events", async (HttpContext context, SnapshotWorker worker) =>
+app.MapGet("/api/events", async (HttpContext context, SnapshotWorker worker, UiAuthentication auth) =>
 {
     context.Response.ContentType = "text/event-stream"; context.Response.Headers.CacheControl = "no-cache, no-transform";
     context.Response.Headers["X-Accel-Buffering"] = "no";
     var (id, reader) = worker.Subscribe(); var token = context.RequestAborted;
     try
     {
-        while (!token.IsCancellationRequested)
+        while (!token.IsCancellationRequested && auth.Authorized(context.Request))
         {
             using var wait = CancellationTokenSource.CreateLinkedTokenSource(token); wait.CancelAfter(TimeSpan.FromSeconds(15));
-            try { var item = await reader.ReadAsync(wait.Token); await context.Response.WriteAsync($"event: {item.Name}\ndata: {item.Json}\n\n", token); }
+            try { var item = await reader.ReadAsync(wait.Token); if (!auth.Authorized(context.Request)) break; await context.Response.WriteAsync($"event: {item.Name}\ndata: {item.Json}\n\n", token); }
             catch (OperationCanceledException) when (!token.IsCancellationRequested) { await context.Response.WriteAsync(": keep-alive\n\n", token); }
             await context.Response.Body.FlushAsync(token);
         }
