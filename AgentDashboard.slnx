@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="src/Dashboard.Contracts/Dashboard.Contracts.csproj"/>
+  <Project Path="src/Dashboard.Core/Dashboard.Core.csproj"/>
+  <Project Path="src/Dashboard.Api/Dashboard.Api.csproj"/>
+  <Project Path="src/Dashboard.Adapters/Dashboard.Adapters.csproj"/>
+  <Project Path="src/Dashboard.Collector/Dashboard.Collector.csproj"/>
+  <Project Path="tests/Dashboard.Tests/Dashboard.Tests.csproj"/>
+</Solution>

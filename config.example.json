@@ -1,9 +1,6 @@
 {
   "port": 4317,
   "ingestionPort": 4319,
-  "collectLocal": true,
-  "minimumRunning": 3,
-  "pollIntervalMs": 2000,
-  "reminderCooldownMinutes": 15,
-  "windowsNotifications": true
+  "bindAddress": "127.0.0.1",
+  "uiAuthentication": "access-key"
 }
