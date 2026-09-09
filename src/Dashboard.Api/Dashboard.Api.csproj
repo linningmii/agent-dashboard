@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../Dashboard.Core/Dashboard.Core.csproj"/>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0"/>
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5"/>
   </ItemGroup>
   <ItemGroup><Content Include="../../web/dist/**" Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest"/></ItemGroup>
 </Project>

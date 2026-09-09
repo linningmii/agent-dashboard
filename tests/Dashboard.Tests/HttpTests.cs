@@ -88,6 +88,30 @@ public sealed class HttpTests
             await RunCollector("run", "--once");
             snapshot = await client.GetFromJsonAsync<Snapshot>("/api/status", Protocol.Json);
             Assert.Contains(snapshot!.Completions, item => item.LatestOutput == "CLI completed output");
+            // Separate anonymous enrollment throttling from dashboard login.
+            using var anonymous = new HttpClient(new HttpClientHandler { UseCookies = false });
+            for (var i = 0; i < 10; i++)
+            {
+                var denied = await anonymous.PostAsJsonAsync($"http://127.0.0.1:{ingest}/v1/devices/register", new EnrollmentRequest("invalid", "Rate-limit fixture"));
+                Assert.Contains(denied.StatusCode, new[] { HttpStatusCode.Unauthorized, HttpStatusCode.TooManyRequests });
+            }
+            Assert.Equal(HttpStatusCode.TooManyRequests, (await anonymous.PostAsJsonAsync($"http://127.0.0.1:{ingest}/v1/devices/register", new EnrollmentRequest("invalid", "Rate-limit fixture"))).StatusCode);
+            var login = await anonymous.PostAsJsonAsync($"http://127.0.0.1:{ui}/api/auth/login", new LoginInput(key));
+            Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+            var cookie = login.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+            using var cookieClient = new HttpClient(new HttpClientHandler { UseCookies = false }) { BaseAddress = client.BaseAddress };
+            cookieClient.DefaultRequestHeaders.Add("Cookie", cookie);
+            Assert.Equal(HttpStatusCode.OK, (await cookieClient.GetAsync("/api/status")).StatusCode);
+            using var streamLimit = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            using var cookieEvents = await cookieClient.GetAsync("/api/events", HttpCompletionOption.ResponseHeadersRead, streamLimit.Token);
+            using var cookieReader = new StreamReader(await cookieEvents.Content.ReadAsStreamAsync(streamLimit.Token));
+            Assert.Equal("event: snapshot", await cookieReader.ReadLineAsync(streamLimit.Token));
+            Assert.Equal(HttpStatusCode.OK, (await cookieClient.PostAsJsonAsync("/api/auth/logout", new { })).StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, (await cookieClient.GetAsync("/api/status")).StatusCode);
+            // A revoked cookie must also lose an already-open stream.
+            while (await cookieReader.ReadLineAsync(streamLimit.Token) is not null) { }
+            for (var i = 0; i < 10; i++) await anonymous.PostAsJsonAsync($"http://127.0.0.1:{ui}/api/auth/login", new LoginInput("invalid"));
+            Assert.Equal(HttpStatusCode.TooManyRequests, (await anonymous.PostAsJsonAsync($"http://127.0.0.1:{ui}/api/auth/login", new LoginInput(key))).StatusCode);
         }
         finally { if (!host.HasExited) host.Kill(true); await host.WaitForExitAsync(); await stdout; await stderr; Directory.Delete(dir, true); }
     }
