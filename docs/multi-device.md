@@ -43,6 +43,6 @@ The **Show tasks from** selector combines with agent filters and search. **Disco
 
 ## Transport
 
-The UI/dashboard API and collector-ingestion API have separate endpoints and private Dev Tunnels. Ingestion accepts registration, sessions, snapshots, and health only. The UI endpoint owns device management and combined state. The service access key is independent of Microsoft tunnel credentials; collectors use their own device tokens.
+The UI/dashboard API and collector-ingestion API have separate endpoints and private Dev Tunnels. Ingestion accepts registration, sessions, snapshots, and health only. The UI endpoint owns device management and combined state. With `uiAuthentication: dev-tunnel`, browsers sign into the UI tunnel owner’s Microsoft account without a dashboard key. In default `access-key` mode, the service key is also required. Collectors always use their own device tokens and sign into the ingestion tunnel owner’s account when that private tunnel is used. See [remote access](remote-access.md).
 
 The endpoint contract is in [contracts/openapi.json](../contracts/openapi.json). [Adapter support](adapters.md) documents per-platform detection and uncertainty.

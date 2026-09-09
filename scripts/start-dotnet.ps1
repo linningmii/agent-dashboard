@@ -8,7 +8,7 @@ if (-not (Test-Path -LiteralPath $hubDll)) { throw 'Build first with scripts/bui
 $hubRunning = $false
 try {
   $status = Invoke-RestMethod "http://127.0.0.1:$Port/api/auth/status" -TimeoutSec 3
-  if ($status.requiresLogin) { $hubRunning = $true; Write-Output 'The .NET API service is already running.' }
+  if ($status.requiresLogin -is [bool] -and $status.authenticated -is [bool]) { $hubRunning = $true; Write-Output 'The .NET API service is already running.' }
 } catch { }
 $logs = Join-Path $root 'data'
 New-Item -ItemType Directory -Force -Path $logs | Out-Null

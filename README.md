@@ -38,7 +38,7 @@ NuGet uses Microsoft's dotnet-public Azure Artifacts feed. The build runs backen
 dotnet artifacts/release/hub/Dashboard.Api.dll
 ```
 
-Open [http://127.0.0.1:4317](http://127.0.0.1:4317). The first start creates a private **data/ui-access-key** file. Use its contents to sign in; an HTTP-only cookie retains the session. Set DASHBOARD_ACCESS_KEY for managed deployments. Do not commit keys or collector credentials.
+Open [http://127.0.0.1:4317](http://127.0.0.1:4317). By default, the service creates **data/ui-access-key** and uses a seven-day session cookie after sign-in. With an owner-only Microsoft Dev Tunnel, set `"uiAuthentication": "dev-tunnel"` in ignored `config.json` to use the tunnel’s Microsoft login without another key prompt. This mode requires the API to bind to loopback. See [remote access](docs/remote-access.md) for setup and account requirements. Do not commit keys or collector credentials.
 
 The API uses two distinct ports: **4317** for UI/dashboard APIs and **4319** for device ingestion. Optional tunnel.json settings retain the two persistent Dev Tunnel URLs. See [remote access](docs/remote-access.md).
 

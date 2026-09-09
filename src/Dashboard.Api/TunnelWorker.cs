@@ -31,6 +31,22 @@ public sealed partial class TunnelWorker(HubOptions options, ILogger<TunnelWorke
         foreach (var arg in args) info.ArgumentList.Add(arg); return info;
     }
     protected override Task ExecuteAsync(CancellationToken token) => Task.WhenAll(Host(options.UiTunnel, state => Ui = state, token), Host(options.IngestionTunnel, state => Ingestion = state, token));
+    public static void ValidatePrivateConfiguration(JsonElement tunnel, JsonElement ports, JsonElement port, int expectedPort)
+    {
+        var p = port.GetProperty("port"); var list = ports.GetProperty("ports");
+        if (tunnel.GetProperty("tunnel").GetProperty("accessControl").GetArrayLength() != 0 || list.GetArrayLength() != 1 ||
+            list[0].GetProperty("portNumber").GetInt32() != expectedPort || p.GetProperty("portNumber").GetInt32() != expectedPort ||
+            p.GetProperty("protocol").GetString() != "http" || p.GetProperty("accessControl").GetArrayLength() != 0 ||
+            p.GetProperty("requestTimeoutSeconds").GetInt32() != 0)
+            throw new InvalidDataException("Tunnel requires owner-only access and exactly its configured HTTP port");
+    }
+    private static async Task ValidatePrivateTunnel(TunnelOptions settings, CancellationToken token)
+    {
+        using var tunnel = JsonDocument.Parse(await RunCli(["show", settings.Id!, "--json"], token));
+        using var ports = JsonDocument.Parse(await RunCli(["port", "list", settings.Id!, "--json"], token));
+        using var port = JsonDocument.Parse(await RunCli(["port", "show", settings.Id!, "--port-number", settings.Port.ToString(), "--json"], token));
+        ValidatePrivateConfiguration(tunnel.RootElement, ports.RootElement, port.RootElement, settings.Port);
+    }
     private async Task Host(TunnelOptions settings, Action<TunnelState> update, CancellationToken token)
     {
         if (!settings.Enabled) return;
@@ -40,15 +56,12 @@ public sealed partial class TunnelWorker(HubOptions options, ILogger<TunnelWorke
             try
             {
                 update(state with { State = "starting" });
-                using var tunnel = JsonDocument.Parse(await RunCli(["show", settings.Id!, "--json"], token));
-                using var ports = JsonDocument.Parse(await RunCli(["port", "list", settings.Id!, "--json"], token));
-                using var port = JsonDocument.Parse(await RunCli(["port", "show", settings.Id!, "--port-number", settings.Port.ToString(), "--json"], token));
-                var p = port.RootElement.GetProperty("port"); var list = ports.RootElement.GetProperty("ports");
-                if (tunnel.RootElement.GetProperty("tunnel").GetProperty("accessControl").GetArrayLength() != 0 || list.GetArrayLength() != 1 ||
-                    list[0].GetProperty("portNumber").GetInt32() != settings.Port || p.GetProperty("protocol").GetString() != "http" ||
-                    p.GetProperty("accessControl").GetArrayLength() != 0 || p.GetProperty("requestTimeoutSeconds").GetInt32() != 0) throw new InvalidDataException("Tunnel requires owner-only access and exactly its configured HTTP port");
+                await ValidatePrivateTunnel(settings, token);
                 await RunCli(["update", settings.Id!, "--expiration", "30d", "--json"], token);
-                using var process = new Process { StartInfo = StartInfo(["host", settings.Id!]) };
+                var trustTunnel = options.UsesDevTunnelAuthentication && settings == options.UiTunnel;
+                var hostArgs = new List<string> { "host", settings.Id! };
+                if (trustTunnel) hostArgs.AddRange(["--host-header", "unchanged", "--origin-header", "unchanged"]);
+                using var process = new Process { StartInfo = StartInfo(hostArgs) };
                 using var childToken = CancellationTokenSource.CreateLinkedTokenSource(token);
                 process.Start(); update(state with { State = "connecting" });
                 async Task Read(StreamReader reader)
@@ -61,17 +74,24 @@ public sealed partial class TunnelWorker(HubOptions options, ILogger<TunnelWorke
                 }
                 async Task Renew()
                 {
+                    var nextRenewal = DateTimeOffset.UtcNow.AddHours(24);
                     while (true)
                     {
-                        await Task.Delay(TimeSpan.FromHours(24), childToken.Token);
+                        await Task.Delay(trustTunnel ? TimeSpan.FromMinutes(1) : TimeSpan.FromHours(24), childToken.Token);
+                        // Closing the host on validation failure prevents quietly continuing
+                        // after an owner changes the tunnel to shared/anonymous access.
+                        if (trustTunnel) await ValidatePrivateTunnel(settings, childToken.Token);
+                        if (DateTimeOffset.UtcNow < nextRenewal) continue;
                         try { await RunCli(["update", settings.Id!, "--expiration", "30d", "--json"], childToken.Token); }
                         catch (Exception) when (!childToken.IsCancellationRequested) { logger.LogWarning("Tunnel {Id} expiration renewal failed; check CLI sign-in", settings.Id); }
+                        nextRenewal = DateTimeOffset.UtcNow.AddHours(24);
                     }
                 }
                 var output = Read(process.StandardOutput); var errors = Read(process.StandardError); var renewal = Renew();
-                try { await process.WaitForExitAsync(token); }
+                try { await await Task.WhenAny(process.WaitForExitAsync(token), renewal); }
                 finally
                 {
+                    update(state with { State = "stopping" });
                     await childToken.CancelAsync(); if (!process.HasExited) process.Kill(true);
                     try { await Task.WhenAll(output, errors, renewal); } catch (OperationCanceledException) { }
                 }

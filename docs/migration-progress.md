@@ -51,8 +51,14 @@ The production service has been cut over to the three-part .NET/React architectu
 
 Vendor-app lifecycle coverage remains as documented in [adapters.md](adapters.md): Codex is live-checked on Windows, Copilot uses explicit manual reports, and uncertain Claude transcript activity is not counted as confirmed running. OS CI validates adapters with fixtures; it does not claim live vendor-app certification on macOS/Linux.
 
+## Microsoft tunnel sign-in follow-up
+
+The deployed host now selects `uiAuthentication: dev-tunnel` in ignored config.json. Owner-only Microsoft tunnel login opens the dashboard directly; the default access-key mode remains available for other hosting. The API stays on loopback and collector device tokens remain mandatory.
+
+Verification: 44 backend tests pass, strict TypeScript and Vite build pass, and exported OpenAPI/generated types remain unchanged. The remote deployment verifier passed without an application key, including same-origin browser headers, rejection of anonymous tunnel access and unrelated origins, device-token enforcement, completion/replay, and SSE. An actual browser completed Microsoft SSO and reached the private dashboard with a live connection, no key form, no application Sign out button, and no console errors. All pre-restart completion IDs were preserved and the existing collector reconnected.
+
 ## Build policy and rollback
 
 Use `npm run setup:web`, scripts/install-web.ps1, or scripts/install-web.sh. Installs default to npmjs with Enzyme fallback; corporate devices can select Enzyme directly. Public installs require no Azure authentication. Enzyme accepts existing npm credentials, an environment token, or the current Azure CLI account. NuGet uses Microsoft's dotnet-public Azure Artifacts feed. Use separate artifacts/windows and artifacts/linux when building from Windows and WSL.
 
-See [migration.md](migration.md) for cutover, separate collector enrollment, retained state, and rollback. The service is application-authenticated: the owner reads data/ui-access-key to sign in. Reminders now use cross-platform SSE and browser notifications, rather than a Windows-only server toast.
+See [migration.md](migration.md) for cutover, separate collector enrollment, retained state, and rollback. The default access-key mode uses `data/ui-access-key`; the optional `dev-tunnel` mode uses the private tunnel’s Microsoft login without a second dashboard prompt. See [remote access](remote-access.md). Reminders use cross-platform SSE and browser notifications.

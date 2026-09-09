@@ -22,6 +22,7 @@ public sealed class HttpTests
         var start = new ProcessStartInfo("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
         foreach (var arg in new[] { dll, "--ui-port", ui.ToString(), "--ingestion-port", ingest.ToString(), "--data-dir", dir, "--no-tunnels", "true" }) start.ArgumentList.Add(arg);
         start.Environment["DASHBOARD_ACCESS_KEY"] = key;
+        start.Environment["DASHBOARD_UI_AUTH"] = "access-key";
         using var host = Process.Start(start)!; var stdout = host.StandardOutput.ReadToEndAsync(); var stderr = host.StandardError.ReadToEndAsync();
         using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{ui}"), Timeout = TimeSpan.FromSeconds(5) };
         try
@@ -35,6 +36,12 @@ public sealed class HttpTests
             }
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/status")).StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/API/STATUS")).StatusCode);
+            var auth = await client.GetFromJsonAsync<AuthInfo>("/api/auth/status", Protocol.Json);
+            Assert.True(auth!.RequiresLogin); Assert.False(auth.Authenticated);
+            using var claimed = new HttpRequestMessage(HttpMethod.Get, "/api/status");
+            claimed.Headers.Add("X-Tunnel-Authorization", "tunnel forged");
+            claimed.Headers.Add("X-Forwarded-Host", "example-4317.jpe1.devtunnels.ms");
+            Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(claimed)).StatusCode);
             client.DefaultRequestHeaders.Authorization = new("Bearer", key);
             var pair = await (await client.PostAsJsonAsync("/api/devices/pair", new { })).Content.ReadFromJsonAsync<PairingResponse>(Protocol.Json);
             using var collector = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{ingest}") };

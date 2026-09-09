@@ -20,7 +20,7 @@ This retains the original local device ID, issues an ignored collector.json cred
 2. Stop only this project's old server and two tunnel-host child processes.
 3. Run migrate-host, then start the .NET API and the separate collector. Keep ports 4317/4319 and the saved tunnel IDs.
 4. Verify every imported unread completion, global counts, device ID, and both tunnel URLs. Run verify-deployment.ps1 -Remote.
-5. Sign into the UI with data/ui-access-key. This new application-level authentication enables ordinary HTTPS hosting as well as private tunnels.
+5. Use `data/ui-access-key` in default access-key mode. For owner-only Dev Tunnels, `uiAuthentication: dev-tunnel` uses Microsoft tunnel login without a second key prompt; see [remote access](remote-access.md).
 
 Reminders now originate in the cross-platform API and reach connected browsers over SSE, including periodic reminders. Browser permission is required for OS notifications. The old server-side Windows toast helper was removed. Closed-page push notifications remain unsupported.
 

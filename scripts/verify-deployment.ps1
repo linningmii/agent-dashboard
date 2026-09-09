@@ -1,7 +1,11 @@
 param([string]$BaseUrl = 'http://127.0.0.1:4317', [string]$AccessKeyFile = 'data/ui-access-key', [switch]$Remote)
 $ErrorActionPreference = 'Stop'
-$key = (Get-Content -LiteralPath $AccessKeyFile -Raw).Trim()
-$adminHeaders = @{ Authorization = "Bearer $key"; Accept = 'application/json' }
+$auth = Invoke-RestMethod "$BaseUrl/api/auth/status" -TimeoutSec 15
+$adminHeaders = @{ Accept = 'application/json' }
+if ($auth.requiresLogin) {
+  $key = (Get-Content -LiteralPath $AccessKeyFile -Raw).Trim()
+  $adminHeaders.Authorization = "Bearer $key"
+}
 $tunnels = Invoke-RestMethod "$BaseUrl/api/tunnels" -Headers $adminHeaders -TimeoutSec 30
 $uiUrl = $BaseUrl
 $ingestionUrl = 'http://127.0.0.1:4319'
@@ -33,7 +37,18 @@ function Expect-Status([string]$Url, [int[]]$Statuses, [hashtable]$Headers = @{}
   finally { if($response){$response.Dispose()}; $client.Dispose() }
   if ($code -notin $Statuses) { throw "Unexpected HTTP $code for $Url" }
 }
-Expect-Status "$uiUrl/api/status" @(302,303,307,401,403)
+if ($Remote -or $auth.requiresLogin) { Expect-Status "$uiUrl/api/status" @(302,303,307,401,403) }
+$remoteAuth = Request-Json "$uiUrl/api/auth/status" GET $adminHeaders
+if (-not $remoteAuth.authenticated -or $remoteAuth.requiresLogin -ne $auth.requiresLogin) { throw 'Authentication mode mismatch.' }
+if (-not $auth.requiresLogin) {
+  if ($adminHeaders.ContainsKey('Authorization')) { throw 'Tunnel-only verification must not send a dashboard key.' }
+  $crossOriginHeaders = $adminHeaders.Clone(); $crossOriginHeaders.Origin = 'https://unrelated.example'
+  Expect-Status "$uiUrl/api/status" @(403) $crossOriginHeaders
+  # Exercise writes with the same Origin/Fetch headers sent by real browsers.
+  $adminHeaders.Origin = $uiUrl.TrimEnd('/')
+  $adminHeaders['Sec-Fetch-Site'] = 'same-origin'
+  Write-Output 'Dashboard opens without a key; unrelated browser origins are rejected.'
+}
 $baseline = Request-Json "$uiUrl/api/status" GET $adminHeaders
 $page = Invoke-WebRequest "$uiUrl/" -Headers $adminHeaders -TimeoutSec 30
 if ($page.Content -notmatch 'type="module"') { throw 'React build not served.' }
@@ -43,6 +58,11 @@ $deviceHeaders.Authorization = 'Bearer ' + $registered.token
 $completionId = $null
 try {
   Expect-Status "$ingestionUrl/api/status" @(404) $deviceHeaders
+  $noDeviceToken = $deviceHeaders.Clone(); $noDeviceToken.Remove('Authorization')
+  try {
+    Request-Json "$ingestionUrl/v1/devices/$($registered.deviceId)/sessions" POST $noDeviceToken @{} | Out-Null
+    throw 'Ingestion accepted a request without device credentials.'
+  } catch { if ([int]$_.Exception.Response.StatusCode -ne 401) { throw } }
   Expect-Status "$uiUrl/health" @(404) $adminHeaders
   $session = Request-Json "$ingestionUrl/v1/devices/$($registered.deviceId)/sessions" POST $deviceHeaders @{}
   $report = @{version=1;sessionId=$session.sessionId;sequence=1;sources=@{codex=@{available=$true;automatic=$true;detail='Fixture'}};tasks=@(@{id='test-turn';source='codex';title='Temporary deployment verification';status='running';startedAt=[DateTimeOffset]::UtcNow.ToString('o');latestOutput='Checking full deployment'});completions=@()}

@@ -6,11 +6,17 @@ namespace Dashboard.Api;
 
 public sealed class UiAuthentication
 {
-    private readonly string keyHash;
-    private readonly byte[] cookieKey;
+    private readonly string? keyHash;
+    private readonly byte[] cookieKey = [];
+    private readonly HubOptions options;
+    private readonly TunnelWorker tunnels;
+    public bool RequiresLogin => !options.UsesDevTunnelAuthentication;
     public const string CookieName = "dashboard-session";
-    public UiAuthentication(HubOptions options, HubService hub)
+    public UiAuthentication(HubOptions options, HubService hub, TunnelWorker tunnels)
     {
+        options.ValidateAuthentication();
+        this.options = options; this.tunnels = tunnels;
+        if (!RequiresLogin) return;
         var file = Path.Combine(options.DataDirectory, "ui-access-key");
         var key = Environment.GetEnvironmentVariable("DASHBOARD_ACCESS_KEY");
         if (string.IsNullOrWhiteSpace(key))
@@ -24,12 +30,14 @@ public sealed class UiAuthentication
     public bool Login(string? input) => Credentials.Matches(keyHash, input);
     public string Issue()
     {
+        if (!RequiresLogin) throw new InvalidOperationException("Sign-in is managed by the private Dev Tunnel");
         var value = DateTimeOffset.UtcNow.AddDays(7).ToUnixTimeSeconds() + "." + Credentials.Token();
         return value + "." + Sign(value);
     }
     private string Sign(string value) => Convert.ToHexStringLower(HMACSHA256.HashData(cookieKey, Encoding.UTF8.GetBytes(value)));
     public bool Authorized(HttpRequest request)
     {
+        if (!RequiresLogin) return DevTunnelAccess.Allows(request, options, tunnels.Ui);
         var bearer = request.Headers.Authorization.ToString();
         if (bearer.StartsWith("Bearer ", StringComparison.Ordinal) && Login(bearer[7..])) return true;
         if (!request.Cookies.TryGetValue(CookieName, out var cookie)) return false;

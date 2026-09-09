@@ -1,5 +1,6 @@
 {
   "port": 4317,
   "ingestionPort": 4319,
-  "bindAddress": "127.0.0.1"
+  "bindAddress": "127.0.0.1",
+  "uiAuthentication": "access-key"
 }

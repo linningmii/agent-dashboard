@@ -33,6 +33,8 @@ app.Use(async (context, next) =>
         var path = context.Request.Path.Value ?? "/"; var ingestion = context.Connection.LocalPort == options.IngestionPort;
         var collectorRoute = path.StartsWith("/v1/", StringComparison.OrdinalIgnoreCase) || path.Equals("/health", StringComparison.OrdinalIgnoreCase);
         if (ingestion != collectorRoute) { context.Response.StatusCode = 404; await context.Response.WriteAsJsonAsync(new ErrorResponse("Not found")); return; }
+        if (!ingestion && options.UsesDevTunnelAuthentication && !app.Services.GetRequiredService<UiAuthentication>().Authorized(context.Request))
+            throw new DomainException(403, "Use this host or its private dashboard tunnel");
         if (ingestion && context.Request.Headers.ContainsKey("Origin")) throw new DomainException(403, "Collector requests only");
         if (!HttpMethods.IsGet(context.Request.Method) && !HttpMethods.IsHead(context.Request.Method) && !context.Request.HasJsonContentType()) throw new DomainException(415, "JSON content type required");
         if (!ingestion && path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) && !path.StartsWith("/api/auth/", StringComparison.OrdinalIgnoreCase) && !app.Services.GetRequiredService<UiAuthentication>().Authorized(context.Request)) throw new DomainException(401, "Dashboard sign-in required");
@@ -44,14 +46,15 @@ app.Use(async (context, next) =>
     catch (JsonException) { context.Response.StatusCode = 400; await context.Response.WriteAsJsonAsync(new ErrorResponse("Invalid JSON")); }
 });
 app.UseRateLimiter();
-app.MapGet("/api/auth/status", (HttpContext c, UiAuthentication auth) => new AuthInfo(auth.Authorized(c.Request), true));
+app.MapGet("/api/auth/status", (HttpContext c, UiAuthentication auth) => new AuthInfo(auth.Authorized(c.Request), auth.RequiresLogin));
 app.MapPost("/api/auth/login", (LoginInput input, HttpContext c, UiAuthentication auth) =>
 {
+    if (!auth.RequiresLogin) return new AuthInfo(auth.Authorized(c.Request), false);
     if (!auth.Login(input.AccessKey)) throw new DomainException(401, "Invalid access key");
     c.Response.Cookies.Append(UiAuthentication.CookieName, auth.Issue(), new CookieOptions { HttpOnly = true, SameSite = SameSiteMode.Strict, Secure = c.Request.IsHttps || c.Request.Headers["X-Forwarded-Proto"] == "https", MaxAge = TimeSpan.FromDays(7), Path = "/" });
     return new AuthInfo(true, true);
 }).RequireRateLimiting("login");
-app.MapPost("/api/auth/logout", (HttpContext c) => { c.Response.Cookies.Delete(UiAuthentication.CookieName); return new AuthInfo(false, true); });
+app.MapPost("/api/auth/logout", (HttpContext c, UiAuthentication auth) => { c.Response.Cookies.Delete(UiAuthentication.CookieName); return new AuthInfo(!auth.RequiresLogin && auth.Authorized(c.Request), auth.RequiresLogin); });
 app.MapGet("/api/status", (HubService hub) => hub.Snapshot());
 app.MapGet("/api/tunnel", (TunnelWorker tunnels) => tunnels.Ui);
 app.MapGet("/api/tunnels", (TunnelWorker tunnels) => new TunnelStates(tunnels.Ui, tunnels.Ingestion));

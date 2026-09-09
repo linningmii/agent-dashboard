@@ -1,11 +1,19 @@
+using System.Net;
 using System.Text.Json;
 using Dashboard.Contracts;
 
 namespace Dashboard.Api;
 
 public sealed record HubOptions(string DataDirectory, string WebRoot, int UiPort, int IngestionPort, string BindAddress,
-    TunnelOptions UiTunnel, TunnelOptions IngestionTunnel, string? PublicIngestionUrl)
+    TunnelOptions UiTunnel, TunnelOptions IngestionTunnel, string? PublicIngestionUrl, string UiAuthentication = "access-key")
 {
+    public bool UsesDevTunnelAuthentication => UiAuthentication == "dev-tunnel";
+    public void ValidateAuthentication()
+    {
+        if (UiAuthentication is not ("access-key" or "dev-tunnel")) throw new InvalidDataException("uiAuthentication must be access-key or dev-tunnel");
+        if (UsesDevTunnelAuthentication && (!IPAddress.TryParse(BindAddress, out var address) || !IPAddress.IsLoopback(address) || !UiTunnel.Enabled || string.IsNullOrWhiteSpace(UiTunnel.Id)))
+            throw new InvalidDataException("Dev Tunnel authentication requires a loopback listener and an enabled private UI tunnel");
+    }
     public static HubOptions Load(IConfiguration configuration)
     {
         var root = Environment.GetEnvironmentVariable("DASHBOARD_ROOT") ?? Directory.GetCurrentDirectory();
@@ -26,7 +34,10 @@ public sealed record HubOptions(string DataDirectory, string WebRoot, int UiPort
             if (tunnel.Enabled && (tunnel.Port != port || string.IsNullOrWhiteSpace(tunnel.Id))) throw new InvalidDataException("Tunnel port/ID does not match listener");
         if (uiTunnel.Enabled && ingestionTunnel.Enabled && uiTunnel.Id == ingestionTunnel.Id) throw new InvalidDataException("Use two separate tunnels");
         var packagedWeb = Path.Combine(AppContext.BaseDirectory, "wwwroot");
-        return new(Path.GetFullPath(data), configuration["web-root"] ?? (Directory.Exists(packagedWeb) ? packagedWeb : Path.Combine(root, "web", "dist")), ui, ingest,
-            configuration["bind"] ?? file["bindAddress"] ?? "127.0.0.1", uiTunnel, ingestionTunnel, configuration["ingestion-url"] ?? Environment.GetEnvironmentVariable("DASHBOARD_INGESTION_URL") ?? file["ingestionUrl"]);
+        var options = new HubOptions(Path.GetFullPath(data), configuration["web-root"] ?? (Directory.Exists(packagedWeb) ? packagedWeb : Path.Combine(root, "web", "dist")), ui, ingest,
+            configuration["bind"] ?? file["bindAddress"] ?? "127.0.0.1", uiTunnel, ingestionTunnel, configuration["ingestion-url"] ?? Environment.GetEnvironmentVariable("DASHBOARD_INGESTION_URL") ?? file["ingestionUrl"],
+            configuration["ui-auth"] ?? Environment.GetEnvironmentVariable("DASHBOARD_UI_AUTH") ?? file["uiAuthentication"] ?? "access-key");
+        options.ValidateAuthentication();
+        return options;
     }
 }
