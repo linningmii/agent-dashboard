@@ -72,8 +72,23 @@ public sealed partial class HubService(SqliteStateStore<HubState> store, TimePro
     public void Authenticate(string id, string? token) => store.Read(state => Authorized(state, id, token));
     public SessionResponse OpenSession(string id, string? token) => store.Update(state =>
     {
-        var device = Authorized(state, id, token); device.SessionId = Protocol.Id(); device.Sequence = 0;
+        var device = Authorized(state, id, token);
+        if (device.Sequence > 0 && device.HeartbeatSequence == 0) device.LastReportAt ??= device.LastSeenAt;
+        device.SessionId = Protocol.Id(); device.Sequence = 0; device.HeartbeatSequence = 0;
         return new SessionResponse(device.SessionId);
+    });
+    public DeviceHeartbeatResponse Heartbeat(string id, string? token, DeviceHeartbeat heartbeat) => store.Update(state =>
+    {
+        var device = Authorized(state, id, token);
+        Text(heartbeat.SessionId, 100, "session ID", true);
+        Require(heartbeat.Sequence >= 1 && heartbeat.Sequence <= 9007199254740991, "Invalid heartbeat sequence");
+        Require(device.SessionId is not null && device.SessionId == heartbeat.SessionId, "Collector session replaced; restart collector", 409);
+        Require(heartbeat.Sequence >= device.HeartbeatSequence, "Out-of-order heartbeat", 409);
+        if (heartbeat.Sequence == device.HeartbeatSequence) return new DeviceHeartbeatResponse(true, heartbeat.Sequence, device.LastSeenAt!.Value, true);
+        // A heartbeat proves connectivity, not that old task data is still valid.
+        if (device.Sequence > 0 && device.HeartbeatSequence == 0) device.LastReportAt ??= device.LastSeenAt;
+        device.HeartbeatSequence = heartbeat.Sequence; device.LastSeenAt = Now;
+        return new DeviceHeartbeatResponse(true, heartbeat.Sequence, device.LastSeenAt.Value);
     });
     public ReportResponse Report(string id, string? token, DeviceReport report) => store.Update(state =>
     {
@@ -90,7 +105,7 @@ public sealed partial class HubService(SqliteStateStore<HubState> store, TimePro
         }
         // No unread notification is discarded silently; acknowledged IDs remain separately for replay safety.
         device.Tasks = report.Tasks.Select(task => task with { DeviceId = null, DeviceName = null, ManagedLocally = false }).ToList();
-        device.Sources = report.Sources; device.Sequence = report.Sequence; device.LastSeenAt = Now;
+        device.Sources = report.Sources; device.Sequence = report.Sequence; device.LastSeenAt = Now; device.LastReportAt = Now;
         return new ReportResponse(true, report.Sequence);
     });
     public static void ValidateReport(DeviceReport report)
@@ -171,12 +186,15 @@ public sealed partial class HubService(SqliteStateStore<HubState> store, TimePro
         foreach (var device in state.Devices.Values.Where(device => !device.Revoked))
         {
             var online = device.LastSeenAt is not null && Now - device.LastSeenAt < TimeSpan.FromSeconds(LeaseSeconds);
+            var lastReport = device.LastReportAt ?? (device.Sequence > 0 && device.HeartbeatSequence == 0 ? device.LastSeenAt : null);
+            var reportFresh = lastReport is not null && Now - lastReport < TimeSpan.FromSeconds(LeaseSeconds);
             var deviceTasks = device.Tasks.Select(task => task with { Id = TaskKey(device.Id, task.Id), DeviceId = device.Id, DeviceName = device.Name,
-                Status = !online || (task.Confidence != Confidence.Reported && !device.Sources.GetValueOrDefault(task.Source, new()).Available) ? TaskStatus.Stale : task.Status,
+                Status = !online || !reportFresh || (task.Confidence != Confidence.Reported && !device.Sources.GetValueOrDefault(task.Source, new()).Available) ? TaskStatus.Stale : task.Status,
                 ManagedLocally = false }).ToList();
             tasks.AddRange(deviceTasks);
             devices.Add(new(device.Id, device.Name, device.LastSeenAt is null ? DeviceStatus.Pending : online ? DeviceStatus.Online : DeviceStatus.Offline,
-                deviceTasks.Count(task => task.Status == TaskStatus.Running), device.LastSeenAt, device.Sources));
+                deviceTasks.Count(task => task.Status == TaskStatus.Running), device.LastSeenAt, device.Sources,
+                LastReportAt: lastReport, TaskDataStale: !reportFresh));
         }
         foreach (var task in state.ManualTasks)
         {

@@ -111,8 +111,22 @@ h1 > span { color: #7c9c70; }
 .device-card { border: 1px solid var(--line); border-radius: 9px; background: var(--paper); padding: 16px; min-width: 0; }
 .device-card h3 { font-size: 1rem; overflow-wrap: anywhere; }
 .device-card p { font-size: .875rem; color: var(--body); margin-top: 6px; line-height: 1.5; }
-.device-state { color: var(--green); }
-.device-card[data-status="offline"] .device-state { color: #97642d; }
+.device-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.device-card-heading h3 { flex: 1 1 120px; }
+.device-status { display: inline-flex; align-items: center; gap: 7px; border-radius: 20px; padding: 4px 9px; background: #eef0ed; color: #56615a; font-size: .8125rem; font-weight: 650; white-space: nowrap; }
+.device-status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.device-card[data-status="online"] { border-top: 3px solid #36865a; }
+.device-card[data-status="online"] .device-status { color: #22613b; background: #e4f3e7; }
+.device-card[data-status="offline"] { border-top: 3px solid #b47742; }
+.device-card[data-status="offline"] .device-status { color: #855023; background: #fbeddc; }
+.device-card[data-status="pending"] .device-status { color: #66548c; background: #f0eafb; }
+.device-card[data-status="unknown"] .device-status-dot { background: transparent; border: 2px solid currentColor; }
+.device-card .device-heartbeat { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-top: 12px; }
+.device-heartbeat time { font-variant-numeric: tabular-nums; font-weight: 600; }
+.device-card .device-status-detail { font-size: .8125rem; color: #68765f; }
+.device-card .device-warning { color: #855023; font-size: .8125rem; }
+.device-summary { display: flex; flex-wrap: wrap; gap: 7px 16px; font-size: .875rem; color: #596951; margin: 5px 0 10px; }
+.device-summary .online-count { color: #22613b; font-weight: 600; }
 .device-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: .875rem; margin-top: 14px; }
 .device-filter select { width: auto; max-width: 100%; min-width: 170px; }
 .task-device { font-weight: 500; color: var(--green); }

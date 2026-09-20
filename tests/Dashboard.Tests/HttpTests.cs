@@ -51,6 +51,18 @@ public sealed class HttpTests
             var registered = await (await collector.PostAsJsonAsync("/v1/devices/register", new EnrollmentRequest(pair!.Code, "HTTP device"))).Content.ReadFromJsonAsync<EnrollmentResponse>(Protocol.Json);
             collector.DefaultRequestHeaders.Authorization = new("Bearer", registered!.Token);
             var session = await (await collector.PostAsJsonAsync($"/v1/devices/{registered.DeviceId}/sessions", new { })).Content.ReadFromJsonAsync<SessionResponse>(Protocol.Json);
+            var heartbeat = new DeviceHeartbeat(session!.SessionId, 1);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsJsonAsync($"/v1/devices/{registered.DeviceId}/heartbeat", heartbeat)).StatusCode);
+            using (var noCredentials = new HttpClient { BaseAddress = collector.BaseAddress })
+                Assert.Equal(HttpStatusCode.Unauthorized, (await noCredentials.PostAsJsonAsync($"/v1/devices/{registered.DeviceId}/heartbeat", heartbeat)).StatusCode);
+            var heartbeatResponse = await collector.PostAsJsonAsync($"/v1/devices/{registered.DeviceId}/heartbeat", heartbeat);
+            Assert.Equal(HttpStatusCode.OK, heartbeatResponse.StatusCode);
+            var firstBeat = await heartbeatResponse.Content.ReadFromJsonAsync<DeviceHeartbeatResponse>(Protocol.Json);
+            var replayResponse = await collector.PostAsJsonAsync($"/v1/devices/{registered.DeviceId}/heartbeat", heartbeat);
+            var replayBeat = await replayResponse.Content.ReadFromJsonAsync<DeviceHeartbeatResponse>(Protocol.Json);
+            Assert.True(replayBeat!.Duplicate); Assert.Equal(firstBeat!.LastSeenAt, replayBeat.LastSeenAt);
+            var connected = await client.GetFromJsonAsync<Snapshot>("/api/status", Protocol.Json);
+            Assert.Equal(DeviceStatus.Online, connected!.Devices.Single().Status); Assert.Empty(connected.Tasks);
             var report = new DeviceReport { SessionId = session!.SessionId, Sequence = 1, Sources = new() { ["codex"] = new(true) }, Tasks = [new() { Id = "test", Source = "codex", Title = "Test" }] };
             var accepted = await collector.PutAsJsonAsync($"/v1/devices/{registered.DeviceId}/snapshot", report, Protocol.Json); Assert.True(accepted.IsSuccessStatusCode);
             var snapshot = await client.GetFromJsonAsync<Snapshot>("/api/status", Protocol.Json); Assert.Equal(1, snapshot!.RunningCount);

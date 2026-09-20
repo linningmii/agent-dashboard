@@ -439,6 +439,45 @@
         }
       }
     },
+    "/v1/devices/{id}/heartbeat": {
+      "post": {
+        "tags": [
+          "Dashboard.Api"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeviceHeartbeat"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceHeartbeatResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/devices/{id}/snapshot": {
       "put": {
         "tags": [
@@ -722,6 +761,47 @@
           "estimated"
         ]
       },
+      "DeviceHeartbeat": {
+        "required": [
+          "sessionId",
+          "sequence"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "DeviceHeartbeatResponse": {
+        "required": [
+          "accepted",
+          "sequence",
+          "lastSeenAt"
+        ],
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
       "DeviceReport": {
         "type": "object",
         "properties": {
@@ -803,6 +883,27 @@
           "local": {
             "type": "boolean",
             "default": false
+          },
+          "lastReportAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "taskDataStale": {
+            "type": "boolean",
+            "default": false
+          },
+          "heartbeatSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "default": 10
+          },
+          "offlineAfterSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "default": 45
           }
         }
       },

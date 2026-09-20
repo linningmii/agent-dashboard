@@ -70,6 +70,7 @@ app.MapGet("/health", () => new HealthResponse("agent-dashboard-ingestion"));
 app.MapPost("/v1/devices/register", (EnrollmentRequest input, HubService hub) => hub.Enroll(input)).RequireRateLimiting("device-enrollment");
 string? Token(HttpContext c) => c.Request.Headers.Authorization.ToString() is var h && h.StartsWith("Bearer ", StringComparison.Ordinal) ? h[7..] : null;
 app.MapPost("/v1/devices/{id}/sessions", (string id, HttpContext c, HubService hub) => hub.OpenSession(id, Token(c)));
+app.MapPost("/v1/devices/{id}/heartbeat", (string id, DeviceHeartbeat heartbeat, HttpContext c, HubService hub) => hub.Heartbeat(id, Token(c), heartbeat));
 app.MapPut("/v1/devices/{id}/snapshot", (string id, DeviceReport report, HttpContext c, HubService hub) => hub.Report(id, Token(c), report));
 app.MapGet("/api/events", async (HttpContext context, SnapshotWorker worker, UiAuthentication auth) =>
 {

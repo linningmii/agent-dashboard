@@ -46,12 +46,15 @@ public record Completion : AgentTask
 }
 public record Settings(int MinimumRunning = 3, double ReminderCooldownMinutes = 15, bool WindowsNotifications = false);
 public record SettingsUpdate(int? MinimumRunning = null, double? ReminderCooldownMinutes = null, bool? WindowsNotifications = null);
-public record DeviceView(string Id, string Name, DeviceStatus Status, int RunningCount, DateTimeOffset? LastSeenAt, Dictionary<string, SourceInfo> Sources, bool Local = false);
+public record DeviceView(string Id, string Name, DeviceStatus Status, int RunningCount, DateTimeOffset? LastSeenAt, Dictionary<string, SourceInfo> Sources, bool Local = false,
+    DateTimeOffset? LastReportAt = null, bool TaskDataStale = false, int HeartbeatSeconds = 10, int OfflineAfterSeconds = 45);
 public record Snapshot(int Version, DateTimeOffset GeneratedAt, int RunningCount, int MinimumRunning, int MissingCount, bool Healthy,
     Settings Settings, List<DeviceView> Devices, List<AgentTask> Tasks, List<Completion> Completions, Dictionary<string, SourceInfo> Sources);
 public record EnrollmentRequest(string Code, string Name);
 public record EnrollmentResponse(string DeviceId, string Token, int HeartbeatSeconds = 10, int OfflineAfterSeconds = 45);
 public record SessionResponse(string SessionId, int HeartbeatSeconds = 10);
+public record DeviceHeartbeat(string SessionId, long Sequence);
+public record DeviceHeartbeatResponse(bool Accepted, long Sequence, DateTimeOffset LastSeenAt, bool Duplicate = false);
 public record DeviceReport
 {
     public int Version { get; init; } = 1;

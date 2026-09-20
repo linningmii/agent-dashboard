@@ -64,27 +64,58 @@ try
     if (command != "run") throw new ArgumentException("Commands: run, enroll, inspect, report, complete, migrate-host");
     var config = JsonSerializer.Deserialize<CollectorConfig>(File.ReadAllText(configFile), Protocol.Json) ?? throw new InvalidDataException("Invalid collector config");
     using var sender = new CollectorClient(config);
+    using var heartbeatSender = new CollectorClient(config);
     string? sessionId = null; long sequence = 0; DeviceReport? pending = null; var once = args.Contains("--once");
-    while (!cancellation.IsCancellationRequested)
+    Task? heartbeatTask = null;
+    async Task SendHeartbeats(string session, int seconds)
     {
         try
         {
-            sessionId ??= (await sender.Send<SessionResponse>($"/v1/devices/{config.DeviceId}/sessions", HttpMethod.Post, new { }, true, cancellation.Token)).SessionId;
-            pending ??= engine.Collect(sessionId, ++sequence);
-            await sender.Send<ReportResponse>($"/v1/devices/{config.DeviceId}/snapshot", HttpMethod.Put, pending, true, cancellation.Token);
-            engine.Acknowledge(pending); pending = null;
-            Console.WriteLine($"{DateTimeOffset.UtcNow:O} Snapshot delivered");
-            if (once) break;
-            await Task.Delay(TimeSpan.FromSeconds(10), cancellation.Token);
+            await CollectorHeartbeat.RunAsync(session, TimeSpan.FromSeconds(Math.Clamp(seconds, 1, 30)),
+                async (heartbeat, token) => { await heartbeatSender.Send<DeviceHeartbeatResponse>($"/v1/devices/{config.DeviceId}/heartbeat", HttpMethod.Post, heartbeat, true, token); },
+                Console.Error.WriteLine, cancellation.Token);
         }
-        catch (DomainException e) when (e.Status == 409) { Console.Error.WriteLine("Collector session replaced; stop duplicate collectors and restart."); Environment.ExitCode = 1; break; }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { break; }
-        catch (Exception e)
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        catch (DomainException error) when (error.Status == 409)
         {
-            Console.Error.WriteLine("Report failed: " + e.GetType().Name + ". Check enrollment, network, and tunnel sign-in.");
-            if (once) { Environment.ExitCode = 1; break; }
-            await Task.Delay(TimeSpan.FromSeconds(15), cancellation.Token);
+            Console.Error.WriteLine("Heartbeat session replaced; stop duplicate collectors and restart.");
+            Environment.ExitCode = 1; await cancellation.CancelAsync();
         }
+    }
+    try
+    {
+        while (!cancellation.IsCancellationRequested)
+        {
+            try
+            {
+                if (sessionId is null)
+                {
+                    var session = await sender.Send<SessionResponse>($"/v1/devices/{config.DeviceId}/sessions", HttpMethod.Post, new { }, true, cancellation.Token);
+                    sessionId = session.SessionId;
+                    if (!once) heartbeatTask = Task.Run(() => SendHeartbeats(session.SessionId, session.HeartbeatSeconds));
+                }
+                pending ??= engine.Collect(sessionId, ++sequence);
+                cancellation.Token.ThrowIfCancellationRequested();
+                await sender.Send<ReportResponse>($"/v1/devices/{config.DeviceId}/snapshot", HttpMethod.Put, pending, true, cancellation.Token);
+                engine.Acknowledge(pending); pending = null;
+                Console.WriteLine($"{DateTimeOffset.UtcNow:O} Snapshot delivered");
+                if (once) break;
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellation.Token);
+            }
+            catch (DomainException e) when (e.Status == 409) { Console.Error.WriteLine("Collector session replaced; stop duplicate collectors and restart."); Environment.ExitCode = 1; break; }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { break; }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine("Report failed: " + e.GetType().Name + ". Check enrollment, network, and tunnel sign-in.");
+                if (once) { Environment.ExitCode = 1; break; }
+                await Task.Delay(TimeSpan.FromSeconds(15), cancellation.Token);
+            }
+        }
+    }
+    finally
+    {
+        await cancellation.CancelAsync();
+        if (heartbeatTask is not null) await heartbeatTask;
     }
 }
 catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }

@@ -8,9 +8,11 @@ public sealed class DeviceRecord
     public string Name { get; set; } = "";
     public string? TokenHash { get; set; }
     public DateTimeOffset? LastSeenAt { get; set; }
+    public DateTimeOffset? LastReportAt { get; set; }
     public bool Revoked { get; set; }
     public string? SessionId { get; set; }
     public long Sequence { get; set; }
+    public long HeartbeatSequence { get; set; }
     public Dictionary<string, SourceInfo> Sources { get; set; } = [];
     public List<AgentTask> Tasks { get; set; } = [];
     public HashSet<string> SeenCompletions { get; set; } = [];
