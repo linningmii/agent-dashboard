@@ -50,7 +50,7 @@ In the dashboard, choose **Connect device**, run its .NET enrollment command on 
 dotnet artifacts/release/collector/Dashboard.Collector.dll run
 ```
 
-Collectors need no inbound port. They support HTTPS endpoints with optional Microsoft Dev Tunnels authentication. Missing heartbeats mark devices offline after 45 seconds; offline tasks do not count and are not mistaken for completed tasks.
+Collectors need no inbound port. They support HTTPS endpoints with optional Microsoft Dev Tunnels authentication. Each collector sends an independent heartbeat every 10 seconds; after 45 seconds without contact, the device becomes offline. Device cards show a colored Online/Offline/Waiting badge and last-heartbeat age. Heartbeats do not keep stale task data running: task snapshots also expire after 45 seconds. See [device status and upgrades](docs/multi-device.md#status-and-completion).
 
 On Windows, after building and enrolling this host, start both background processes using:
 

@@ -65,6 +65,14 @@ try {
   } catch { if ([int]$_.Exception.Response.StatusCode -ne 401) { throw } }
   Expect-Status "$uiUrl/health" @(404) $adminHeaders
   $session = Request-Json "$ingestionUrl/v1/devices/$($registered.deviceId)/sessions" POST $deviceHeaders @{}
+  $heartbeat = @{ sessionId=$session.sessionId; sequence=1 }
+  $beat = Request-Json "$ingestionUrl/v1/devices/$($registered.deviceId)/heartbeat" POST $deviceHeaders $heartbeat
+  $repeatBeat = Request-Json "$ingestionUrl/v1/devices/$($registered.deviceId)/heartbeat" POST $deviceHeaders $heartbeat
+  if (-not $repeatBeat.duplicate -or $repeatBeat.lastSeenAt -ne $beat.lastSeenAt) { throw 'Heartbeat replay extended liveness.' }
+  $heartbeatSnapshot = Request-Json "$uiUrl/api/status" GET $adminHeaders
+  $heartbeatDevice = $heartbeatSnapshot.devices | Where-Object id -eq $registered.deviceId
+  if ($heartbeatDevice.status -ne 'online' -or $heartbeatDevice.runningCount -ne 0 -or $heartbeatDevice.lastReportAt) { throw 'Idle heartbeat did not mark device online independently of task data.' }
+  Write-Output 'Authenticated idle-device heartbeat and replay protection: passed.'
   $report = @{version=1;sessionId=$session.sessionId;sequence=1;sources=@{codex=@{available=$true;automatic=$true;detail='Fixture'}};tasks=@(@{id='test-turn';source='codex';title='Temporary deployment verification';status='running';startedAt=[DateTimeOffset]::UtcNow.ToString('o');latestOutput='Checking full deployment'});completions=@()}
   Request-Json "$ingestionUrl/v1/devices/$($registered.deviceId)/snapshot" PUT $deviceHeaders $report | Out-Null
   $running = Request-Json "$uiUrl/api/status" GET $adminHeaders

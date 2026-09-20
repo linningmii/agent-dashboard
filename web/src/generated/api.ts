@@ -633,6 +633,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/devices/{id}/heartbeat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeviceHeartbeat"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeviceHeartbeatResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/devices/{id}/snapshot": {
         parameters: {
             query?: never;
@@ -803,6 +844,20 @@ export interface components {
         };
         /** @enum {unknown} */
         Confidence: "automatic" | "reported" | "estimated";
+        DeviceHeartbeat: {
+            sessionId: string;
+            /** Format: int64 */
+            sequence: number;
+        };
+        DeviceHeartbeatResponse: {
+            accepted: boolean;
+            /** Format: int64 */
+            sequence: number;
+            /** Format: date-time */
+            lastSeenAt: string;
+            /** @default false */
+            duplicate: boolean;
+        };
         DeviceReport: {
             /** Format: int32 */
             version?: number;
@@ -830,6 +885,20 @@ export interface components {
             };
             /** @default false */
             local: boolean;
+            /** Format: date-time */
+            lastReportAt?: null | string;
+            /** @default false */
+            taskDataStale: boolean;
+            /**
+             * Format: int32
+             * @default 10
+             */
+            heartbeatSeconds: number;
+            /**
+             * Format: int32
+             * @default 45
+             */
+            offlineAfterSeconds: number;
         };
         EnrollmentRequest: {
             code: string;

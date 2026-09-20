@@ -35,7 +35,13 @@ Use --config and --state for explicit paths, or AGENT_COLLECTOR_CONFIG and AGENT
 
 ## Status and completion
 
-Collectors send new snapshots about every ten seconds. The API uses server receipt time for the 45-second heartbeat window. Offline tasks stop contributing to the count. A collector restart opens a new session and invalidates an older collector using the same identity.
+Collectors send a dedicated authenticated heartbeat immediately after opening a session and every ten seconds, independently of agent scanning and snapshot uploads. The API uses server receipt time: after 45 seconds without a new heartbeat or snapshot, the device becomes offline. Each device card shows a labeled Online, Offline, or Waiting for heartbeat badge, plus the time since its last heartbeat. The summary counts online and offline devices. If the browser loses its live dashboard connection, the cards show Connection unknown instead of presenting cached status as current.
+
+Task snapshots are sent about every ten seconds. Heartbeats keep an idle or slow-scanning device online, but do not keep old task data alive: after 45 seconds without a fresh snapshot, its old tasks no longer count as running and the card shows Task updates delayed. Losing contact never fabricates task completions. Manual tracking is labeled separately and requires no device heartbeat.
+
+Both heartbeat and snapshot streams have independent sequence numbers within the same collector session. Duplicate retries do not extend liveness; out-of-order heartbeats and replaced sessions are rejected. A collector restart opens a new session and invalidates an older collector using the same identity. Temporary network or tunnel-authentication failures are retried; device status recovers on the next accepted message.
+
+Upgrade the central API first, then rebuild/restart the collector on every device to enable independent heartbeats. Existing collectors remain compatible: their accepted snapshots continue updating device liveness. The one-shot collector command sends one snapshot and exits, so that device naturally becomes offline after 45 seconds unless another collector is running.
 
 Completions carry explicit event IDs, device labels, final output, and timestamps. Acknowledged events never reappear on retransmission. The outbox survives restart; it sends at most 100 queued events per report. Reports support up to 500 simultaneous task entries; excess entries produce an explicit error rather than a silently truncated count.
 
